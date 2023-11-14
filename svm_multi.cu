@@ -7,6 +7,7 @@
 //      of gradients and updated the weights an biases accordingly
 // Make the final prediction
 
+//train N classifier for each of N classes (classify between belongs to N and does not belong to N)
 #include <stdlib.h>
 #include <stdio.h>
 #include <cublas.h>
@@ -19,6 +20,9 @@
 
 using namespace std;
 
+#define NUM_CLASSES 10
+#define NUM_PIXELS 784
+
 class SVM {
 
     private:
@@ -29,6 +33,7 @@ class SVM {
         int lenW;
         double b;
         double* clsMap;
+        int label;
 
             
         void initWeightsBias(int numFeatures) { //self, X
@@ -42,10 +47,10 @@ class SVM {
                 clsMap = new double[size];
             }
             for (int i = 0; i < size; i++) {
-                if (y[i] == 0) {
-                    clsMap[i] = -1;
-                } else {
+                if (y[i] == label) { //class 1 --> this number, class 0 --> not this number
                     clsMap[i] = 1;
+                } else {
+                    clsMap[i] = -1;
                 }
             }
         }
@@ -95,13 +100,25 @@ class SVM {
         } 
 
     public:
-        SVM(double learningRate, double lamba, double iters) {
+        SVM(double learningRate, double lamba, double iters, int labelNum) {
             lr = learningRate;
             lambdaParam = lamba;
             numIters = iters;
             w = NULL;
             b = 0;
             clsMap = NULL;
+            label = labelNum;
+        }
+
+        
+        SVM() {
+            lr = -1;
+            lambdaParam = -1;
+            numIters = -1;
+            w = NULL;
+            b = 0;
+            clsMap = NULL;
+            label = -1;
         }
 
         ~SVM() {
@@ -122,7 +139,9 @@ class SVM {
 
             for (int i = 0; i < numIters; i++) {
                 // numIters training iterations
-
+                if ((i % 20) == 0) {
+                    cout << "fit iter = " << i << endl;
+                }
                 for (int j = 0; j < size; j++) {
                     bool constraint = satisfyConstraint(X[j], j);
                     double* dw = NULL;
@@ -138,39 +157,59 @@ class SVM {
 
         //X is of dims [size][numFeatures]
         // FREE estimate
-        int* predict(double** X, int size) { //self, X
-            int* estimate = new int[size]; //hold dot products
+        double* predict(double** X, int size) { //self, X
+            double* estimate = new double[size]; //hold dot products
             for (int i = 0; i < size; i++) {
                 estimate[i] = dotProduct(X[i], w, lenW);
                 estimate[i] += b;
             }
 
-            //predict class labels
-            for (int i = 0; i < size; i++) {
-                if (estimate[i] < 0) {
-                    estimate[i] = 0;
-                } else {
-                    estimate[i] = 1;
-                }
-            }
+            // don't predict class labels for MNIST, return raw for prediction between classes
+            // for (int i = 0; i < size; i++) {
+            //     if (estimate[i] < 0) {
+            //         estimate[i] = 0;
+            //     } else {
+            //         estimate[i] = 1;
+            //     }
+            // }
             return estimate;
         }
 
 };
 
-// both yTrue and yPred have size elements
-double accuracy(int* yTrue, int* yPred, int size) {
+// both yTrue and yPred have size elements, predictions = NUM_CLASS double* values (each double* = array of length 'size')
+double accuracy(int* yTrue, double* predictions[], int size) {
     double sum = 0;
+    int* yPred = new int[size];
+
+
+    for (int j = 0; j < size; j++) {
+        double max = 0;
+        int maxId;
+        for (int i = 0; i < NUM_CLASSES; i++) {
+            // cout << "i, j = " << i << ", " << j << endl;
+            if (predictions[i][j] > max) {
+                max = predictions[i][j];
+                maxId = i;
+            }
+        }
+        yPred[j] = maxId;
+    }
+    
     for (int i = 0; i < size; i++) {
-        cout << "yTrue " << yTrue[i] << " | " << "yPred " << yPred[i] << endl;
+        if ((i % 100) == 0) {
+            cout << "yTrue " << yTrue[i] << " | " << "yPred " << yPred[i] << endl;
+        }
         if (yTrue[i] == yPred[i]) {
             sum++;
         }
     }
+
+    delete[] yPred;
     return (sum / (1.0 * size));
 }
 
-void parseBlobData(string dataFileStr, double** Xtrain, double* ytrain, , double** Xtest, double* ytest) {
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
     ifstream inputFile;
     inputFile.open(dataFileStr);
     cout << "open file" << endl;
@@ -184,40 +223,43 @@ void parseBlobData(string dataFileStr, double** Xtrain, double* ytrain, , double
             flag = false;
             continue;
         }
-        double xData1;
-        double xData2;
-        int cls;
+        int label;
+        double pixels[NUM_PIXELS];
         string temp = "";
 
         stringstream inputString(line);
         // ss >> xData1 >> xData2 >> cls;
         getline(inputString, temp, ',');
-        xData1 = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        xData2 = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        cls = atoi(temp.c_str());
-
-        
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
 
         if (total == numTrain) {
             idx = 0;
         }
-        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
         if (total < numTrain) {
-            Xtrain[idx][0] = xData1;
-            Xtrain[idx][1] = xData2;
-            ytrain[idx] = cls;
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+            }
+            ytrain[idx] = label;
         } else {
-            Xtest[idx][0] = xData1;
-            Xtest[idx][1] = xData2;
-            ytest[idx] = cls;
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+            }
+            ytest[idx] = label;
         }
 
         line = "";
         total++;
         idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
 
     }
         
@@ -226,91 +268,27 @@ void parseBlobData(string dataFileStr, double** Xtrain, double* ytrain, , double
     cout << "file closed" << endl;
 
 }
-
-// FINISH THIS?
-void parseTitanicData(string dataFileStr, double** Xtrain, double* ytrain, , double** Xtest, double* ytest) {
-    ifstream inputFile;
-    inputFile.open(dataFileStr);
-    cout << "open file" << endl;
-    
-    string line = "";
-    int total = 0;
-    bool flag = true;
-    int idx = 0;
-    while (getline(inputFile, line)) {
-        if (flag) {
-            flag = false;
-            continue;
-        }
-        int p1;
-        int survived;
-        int pclass;
-        // string name;
-        string sex;
-        int age;
-        int sibSp;
-        int parch;
-        string ticket;
-        double fare;
-        string cabin;
-        string embarked;
-
-        string temp = "";
-
-        stringstream inputString(line);
-        // ss >> xData1 >> xData2 >> cls;
-        getline(inputString, temp, ',');
-        p1 = atoi(temp.c_str());
-        getline(inputString, temp, ',');
-        survived = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        pclass = atoi(temp.c_str());
-
-        
-
-        if (total == numTrain) {
-            idx = 0;
-        }
-        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
-        if (total < numTrain) {
-            Xtrain[idx][0] = xData1;
-            Xtrain[idx][1] = xData2;
-            ytrain[idx] = cls;
-        } else {
-            Xtest[idx][0] = xData1;
-            Xtest[idx][1] = xData2;
-            ytest[idx] = cls;
-        }
-
-        line = "";
-        total++;
-        idx++;
-
-    }
-        
-    cout << "file read" << endl;
-    inputFile.close();
-    cout << "file closed" << endl;
-
-}
-
 
 int main() {
 
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 250;
-    double testSize = 0.1;
-    int numTrain = (1 - testSize) * numSamples;
+    int numSamples = 42000;
+    double testSize = 0.3;
+    double trainSize = 0.2;
+    int numTrain = trainSize * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 2;
+    int numFeatures = NUM_PIXELS;
+
+    cout << "numTrain = " << numTrain << endl;
+    cout << "numTest = " << numTest << endl; 
 
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
-    double lamba = 0.01; //1e-2 
     double iters = 1000;
-    
+    // double iters = 20;
+    double lamba = 1.0 / iters; //1e-2 
+
     cout << "defined params" << endl;
 
     //allocate memory for training and test data
@@ -330,26 +308,37 @@ int main() {
     cout << "finished allocation" << endl;
 
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    string dataFileStr = "blob_data.csv";
+    string dataFileStr = "mnist_train.csv";
 
-    if (dataFileStr == "blob_data.csv") {
-        parseBlobData(dataFileStr, Xtrain, ytrain, Xtest, ytest);
-    } else if (dataFileStr == "titanic.csv") {
-        parseTitanicData(dataFileStr, Xtrain, ytrain, Xtest, ytest);
+    if (dataFileStr == "mnist_train.csv") {
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
     } else {
         cout << "File " << dataFileStr << " not supported" << endl;
     }
 
-    SVM classifier = SVM(learningRate, lamba, iters);
-    classifier.fit(Xtrain, numFeatures, ytrain, numTrain);
-    int* predictions = classifier.predict(Xtest, numTest);
+    SVM classifiers[NUM_CLASSES];
+    for (int i = 0; i < NUM_CLASSES; i++) {
+        classifiers[i] = SVM(learningRate, lamba, iters, i);
+    }
+
+    double* predictions[NUM_CLASSES];
+    for (int i = 0; i < NUM_CLASSES; i++) {
+        cout << "training SVM " << i << "..." << endl;
+        classifiers[i].fit(Xtrain, numFeatures, ytrain, numTrain);
+        cout << "predicting SVM " << i << "..." << endl;
+        double* prediction = classifiers[i].predict(Xtest, numTest); 
+        predictions[i] = prediction;
+    }
+
     
     
-    cout << "cassifier trained " << endl;
+    cout << "classifier trained " << endl;
     double acc = accuracy(ytest, predictions, numTest);
     printf("SVM Accuracy: %f\n", acc);
-
-    delete[] predictions;
+    //DELETE PREDICTIONS    
+    for (int i = 0; i < NUM_CLASSES; i++) {
+        delete[] predictions[i];
+    }
 
     //free memory of training and test data
     for (int i = 0; i < numTrain; i++) {
