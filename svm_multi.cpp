@@ -12,6 +12,7 @@
 #include <stdio.h>
 // #include <cublas.h>
 #include <time.h>
+#include <float.h>
 
 #include <iostream>
 #include <string>
@@ -59,6 +60,9 @@ class SVM {
         double dotProduct(double* a, double* b, int size) {
             double sum = 0;
             for (int i = 0; i < size; i++) {
+                if (i % 100 == 0) {
+                    cout << "dot product i = " << i << ", a[i] = " << a[i] << ", b[i] = " << b[i] << endl;
+                }
                 sum += a[i] * b[i];
             }
             return sum;
@@ -137,6 +141,12 @@ class SVM {
             initWeightsBias(numFeatures);
             getClsMap(y, size); // updates clsMap
 
+            for (int j = 0; j < size; j++) {
+                if ((label == 0) && (j % 20 == 0)) {
+                    printf("j = %d, cls[j] = %f\n", j, clsMap[j]);
+                }
+            }
+
             for (int i = 0; i < numIters; i++) {
                 // numIters training iterations
                 if ((i % 20) == 0) {
@@ -158,7 +168,16 @@ class SVM {
         //X is of dims [size][numFeatures]
         // FREE estimate
         double* predict(double** X, int size) { //self, X
+            if (label == 9) {
+                    for (int i = 0; i < NUM_PIXELS; i++) {
+                        if (clsMap[i] != -1) {
+                            cout << "AAA i = " << i << ", clsMap[i] = " << clsMap[i] << endl;
+                        }
+                    }
+                }
             double* estimate = new double[size]; //hold dot products
+            cout << "digit = " << label << " , weight[i][50] = " << w[50] << " b[i] = " << b << endl;
+
             for (int i = 0; i < size; i++) {
                 estimate[i] = dotProduct(X[i], w, lenW);
                 estimate[i] += b;
@@ -184,9 +203,11 @@ double accuracy(int* yTrue, double* predictions[], int size) {
 
 
     for (int j = 0; j < size; j++) {
-        double max = 0;
+        double max = -DBL_MAX;
         int maxId;
         for (int i = 0; i < NUM_CLASSES; i++) {
+            // cout << "i, j = " << i << ", " << j << endl;
+            // cout << "i, j = " << i << ", " << j << "| pred[i][j] = " << predictions[i][j] << endl;
             // cout << "i, j = " << i << ", " << j << endl;
             if (predictions[i][j] > max) {
                 max = predictions[i][j];
@@ -285,8 +306,8 @@ int main() {
 
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
-    double iters = 1000;
-    // double iters = 20;
+    // double iters = 1000;
+    double iters = 20;
     double lamba = 1.0 / iters; //1e-2 
 
     cout << "defined params" << endl;
@@ -316,6 +337,42 @@ int main() {
         cout << "File " << dataFileStr << " not supported" << endl;
     }
 
+    for (int i = 0; i < numTrain; i++) {
+        for (int j = 0; j < numFeatures; j++) {
+            if ( (((i * numFeatures) + j ) % 1000) == 0) {
+                cout << "i = " << ((i * numFeatures) + j ) << ", X[i] = " << Xtrain[i][j] << endl;
+            }
+        }
+    }
+
+    /*
+    double* temp[NUM_CLASSES];
+    for (int i = 0; i < NUM_CLASSES; i++) {
+        temp[i] = new double[numTrain];
+    }
+
+    for (int i = 0; i < NUM_CLASSES; i++) {
+        // classifiers[i].initWeightBias(numFeatures); (weights = 0, bias = 0)
+        // for (int j = 0; j < numFeatures; j++) {
+        //     weights[i][j] = 0;
+        // }
+         //init getClsMap
+        for (int j = 0; j < numTrain; j++) {
+            if (ytrain[j] == i) {
+                temp[i][j] = 1;
+                cout << "cls = +1, i = " << i << ", j = " << j << ", ytrain[j] = " << ytrain[j] << endl;
+            } else {
+                temp[i][j] = -1;
+                cout << "cls = -1, i = " << i << ", j = " << j << ", ytrain[j] = " << ytrain[j] << endl;
+            }
+        }
+    }
+
+    for (int i = 0; i < NUM_CLASSES; i++) {
+        delete[] temp[i];
+    }
+    */
+
     SVM classifiers[NUM_CLASSES];
     for (int i = 0; i < NUM_CLASSES; i++) {
         classifiers[i] = SVM(learningRate, lamba, iters, i);
@@ -328,6 +385,7 @@ int main() {
         cout << "predicting SVM " << i << "..." << endl;
         double* prediction = classifiers[i].predict(Xtest, numTest); 
         predictions[i] = prediction;
+        
     }
 
     

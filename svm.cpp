@@ -33,6 +33,9 @@ class SVM {
             
         void initWeightsBias(int numFeatures) { //self, X
             w = new double[numFeatures];
+            for (int i = 0; i < numFeatures; i++) {
+                w[i] = 0;
+            }
             lenW = numFeatures;
             b = 0;
         }

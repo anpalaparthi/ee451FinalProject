@@ -1,0 +1,682 @@
+==========================================
+SLURM_JOB_ID = 17913292
+SLURM_JOB_NODELIST = d06-17
+TMPDIR = /tmp/SLURM_17913292
+==========================================
+start
+numTrain = 8400
+numTest = 12600
+defined params
+finished allocation
+open file
+file read
+file closed
+training SVM 0...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 0...
+training SVM 1...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 1...
+training SVM 2...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 2...
+training SVM 3...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 3...
+training SVM 4...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 4...
+training SVM 5...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 5...
+training SVM 6...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 6...
+training SVM 7...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 7...
+training SVM 8...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 8...
+training SVM 9...
+fit iter = 0
+fit iter = 20
+fit iter = 40
+fit iter = 60
+fit iter = 80
+fit iter = 100
+fit iter = 120
+fit iter = 140
+fit iter = 160
+fit iter = 180
+fit iter = 200
+fit iter = 220
+fit iter = 240
+fit iter = 260
+fit iter = 280
+fit iter = 300
+fit iter = 320
+fit iter = 340
+fit iter = 360
+fit iter = 380
+fit iter = 400
+fit iter = 420
+fit iter = 440
+fit iter = 460
+fit iter = 480
+fit iter = 500
+fit iter = 520
+fit iter = 540
+fit iter = 560
+fit iter = 580
+fit iter = 600
+fit iter = 620
+fit iter = 640
+fit iter = 660
+fit iter = 680
+fit iter = 700
+fit iter = 720
+fit iter = 740
+fit iter = 760
+fit iter = 780
+fit iter = 800
+fit iter = 820
+fit iter = 840
+fit iter = 860
+fit iter = 880
+fit iter = 900
+fit iter = 920
+fit iter = 940
+fit iter = 960
+fit iter = 980
+predicting SVM 9...
+classifier trained 
+yTrue 7 | yPred 7
+yTrue 8 | yPred 8
+yTrue 9 | yPred 9
+yTrue 8 | yPred 8
+yTrue 7 | yPred 7
+yTrue 0 | yPred 5
+yTrue 7 | yPred 7
+yTrue 0 | yPred 4
+yTrue 6 | yPred 6
+yTrue 2 | yPred 2
+yTrue 3 | yPred 3
+yTrue 8 | yPred 8
+yTrue 8 | yPred 2
+yTrue 4 | yPred 4
+yTrue 5 | yPred 5
+yTrue 7 | yPred 7
+yTrue 8 | yPred 8
+yTrue 6 | yPred 6
+yTrue 8 | yPred 8
+yTrue 1 | yPred 2
+yTrue 5 | yPred 5
+yTrue 9 | yPred 9
+yTrue 1 | yPred 1
+yTrue 5 | yPred 5
+yTrue 0 | yPred 5
+yTrue 8 | yPred 8
+yTrue 9 | yPred 9
+yTrue 8 | yPred 8
+yTrue 3 | yPred 3
+yTrue 3 | yPred 3
+yTrue 6 | yPred 6
+yTrue 0 | yPred 7
+yTrue 2 | yPred 2
+yTrue 0 | yPred 2
+yTrue 5 | yPred 5
+yTrue 1 | yPred 1
+yTrue 4 | yPred 4
+yTrue 6 | yPred 6
+yTrue 6 | yPred 6
+yTrue 9 | yPred 9
+yTrue 6 | yPred 6
+yTrue 2 | yPred 8
+yTrue 7 | yPred 7
+yTrue 5 | yPred 5
+yTrue 6 | yPred 6
+yTrue 3 | yPred 3
+yTrue 1 | yPred 1
+yTrue 6 | yPred 6
+yTrue 1 | yPred 1
+yTrue 8 | yPred 8
+yTrue 2 | yPred 2
+yTrue 1 | yPred 1
+yTrue 3 | yPred 3
+yTrue 1 | yPred 1
+yTrue 9 | yPred 9
+yTrue 4 | yPred 4
+yTrue 1 | yPred 1
+yTrue 6 | yPred 6
+yTrue 7 | yPred 3
+yTrue 8 | yPred 8
+yTrue 3 | yPred 3
+yTrue 4 | yPred 4
+yTrue 7 | yPred 7
+yTrue 1 | yPred 1
+yTrue 6 | yPred 6
+yTrue 2 | yPred 1
+yTrue 1 | yPred 1
+yTrue 3 | yPred 3
+yTrue 3 | yPred 3
+yTrue 5 | yPred 5
+yTrue 6 | yPred 6
+yTrue 8 | yPred 8
+yTrue 9 | yPred 8
+yTrue 3 | yPred 8
+yTrue 7 | yPred 8
+yTrue 0 | yPred 7
+yTrue 2 | yPred 2
+yTrue 8 | yPred 8
+yTrue 9 | yPred 8
+yTrue 8 | yPred 1
+yTrue 7 | yPred 7
+yTrue 0 | yPred 8
+yTrue 4 | yPred 4
+yTrue 2 | yPred 2
+yTrue 9 | yPred 9
+yTrue 8 | yPred 8
+yTrue 6 | yPred 5
+yTrue 1 | yPred 1
+yTrue 5 | yPred 5
+yTrue 3 | yPred 3
+yTrue 6 | yPred 3
+yTrue 9 | yPred 2
+yTrue 6 | yPred 6
+yTrue 4 | yPred 4
+yTrue 4 | yPred 8
+yTrue 3 | yPred 3
+yTrue 3 | yPred 4
+yTrue 4 | yPred 4
+yTrue 2 | yPred 2
+yTrue 0 | yPred 2
+yTrue 9 | yPred 9
+yTrue 4 | yPred 8
+yTrue 4 | yPred 4
+yTrue 5 | yPred 5
+yTrue 1 | yPred 1
+yTrue 8 | yPred 8
+yTrue 5 | yPred 5
+yTrue 3 | yPred 3
+yTrue 8 | yPred 8
+yTrue 5 | yPred 5
+yTrue 4 | yPred 4
+yTrue 3 | yPred 3
+yTrue 3 | yPred 3
+yTrue 6 | yPred 6
+yTrue 0 | yPred 7
+yTrue 1 | yPred 1
+yTrue 9 | yPred 9
+yTrue 5 | yPred 5
+yTrue 3 | yPred 3
+yTrue 7 | yPred 2
+yTrue 6 | yPred 6
+yTrue 7 | yPred 7
+yTrue 5 | yPred 5
+yTrue 6 | yPred 6
+yTrue 0 | yPred 3
+yTrue 9 | yPred 9
+SVM Accuracy: 0.713016
+done
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap
+free memory w
+free memory clsMap

@@ -198,8 +198,6 @@ void parseBlobData(string dataFileStr, double** Xtrain, double* ytrain, , double
         getline(inputString, temp, ',');
         cls = atoi(temp.c_str());
 
-        
-
         if (total == numTrain) {
             idx = 0;
         }
