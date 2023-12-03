@@ -281,6 +281,7 @@ int main() {
         classifiers[i] = LogisticRegression(etaParam, numItersParam, toleranceParam);
     }
 
+    double totalTime = 0;
     double* predictions[NUM_CLASSES];
     int* yTrainOVR = new int[numTrain];
     int* yTestOVR = new int[numTest];
@@ -296,9 +297,17 @@ int main() {
             yTestOVR[j] = (ytest[j] == i) ? 1 : 0;
         }
 
+        struct timespec start, stop; 
+        double time;
+        if( clock_gettime(CLOCK_REALTIME, &start) == -1) { perror("clock gettime");}
+        
         classifiers[i].fit(Xtrain, yTrainOVR, numTrain, numFeatures);
-        cout << "predicting Logistic Regression " << i << "..." << endl;
 
+        cout << "predicting Logistic Regression " << i << "..." << endl;
+        if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) { perror("clock gettime");}		
+        time = (stop.tv_sec - start.tv_sec)+ (double)(stop.tv_nsec - start.tv_nsec)/1e9;
+        totalTime += time;
+        
         double* prediction = new double[numTest];
         classifiers[i].predict(Xtest, numTest, numFeatures, prediction);
         // for (int k = 0; k < numTest; k++) {
@@ -316,6 +325,8 @@ int main() {
     cout << "classifier trained " << endl;
     double acc = accuracy(ytest, predictions, numTest);
     printf("Logistic Regression Accuracy: %f\n", acc);
+    printf("Training Execution Time: %f sec\n", totalTime);
+
     //DELETE PREDICTIONS    
     for (int i = 0; i < NUM_CLASSES; i++) {
         delete[] predictions[i];

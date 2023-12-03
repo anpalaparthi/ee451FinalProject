@@ -378,10 +378,19 @@ int main() {
         classifiers[i] = SVM(learningRate, lamba, iters, i);
     }
 
+    double totalTime = 0;
     double* predictions[NUM_CLASSES];
     for (int i = 0; i < NUM_CLASSES; i++) {
+        struct timespec start, stop; 
+        double time;
+        if( clock_gettime(CLOCK_REALTIME, &start) == -1) { perror("clock gettime");}
+        
         cout << "training SVM " << i << "..." << endl;
         classifiers[i].fit(Xtrain, numFeatures, ytrain, numTrain);
+        
+        if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) { perror("clock gettime");}		
+        time = (stop.tv_sec - start.tv_sec)+ (double)(stop.tv_nsec - start.tv_nsec)/1e9;
+        totalTime += time;
         cout << "predicting SVM " << i << "..." << endl;
         double* prediction = classifiers[i].predict(Xtest, numTest); 
         predictions[i] = prediction;
@@ -393,6 +402,8 @@ int main() {
     cout << "classifier trained " << endl;
     double acc = accuracy(ytest, predictions, numTest);
     printf("SVM Accuracy: %f\n", acc);
+    printf("Training Execution Time: %f sec\n", totalTime);
+
     //DELETE PREDICTIONS    
     for (int i = 0; i < NUM_CLASSES; i++) {
         delete[] predictions[i];

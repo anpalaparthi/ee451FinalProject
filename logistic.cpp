@@ -240,7 +240,13 @@ int main() {
     cout << "model defined" << endl;
 
     // fit
+    
+    struct timespec start, stop; 
+    double time;
+    if( clock_gettime(CLOCK_REALTIME, &start) == -1) { perror("clock gettime");}
     classifier.fit(Xtrain, ytrain, numTrain, numFeatures);
+    if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) { perror("clock gettime");}		
+    time = (stop.tv_sec - start.tv_sec)+ (double)(stop.tv_nsec - start.tv_nsec)/1e9;
 
     cout << "model fit" << endl;
 
@@ -252,6 +258,8 @@ int main() {
     cout << "classifier trained " << endl;
     double acc = accuracy(ytest, yHatTest, numTest);
     printf("Logistic Regression Accuracy: %f\n", acc);
+    printf("Training Execution Time: %f sec\n", time);
+
 
     delete[] yHatTest;
 
