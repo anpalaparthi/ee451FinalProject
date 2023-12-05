@@ -11,9 +11,9 @@
 #include <sstream>
 #include <random>
 
-#define SEED 42
-
 using namespace std;
+
+const int NUM_PIXELS = 7500;
 
 class LogisticRegression {
 
@@ -47,7 +47,6 @@ class LogisticRegression {
         void initWeights(int numFeatures) {
             w = new double[numFeatures];
             std::default_random_engine generator;
-            generator.seed(SEED);
             std::normal_distribution<double> distribution(0.0,1.0);
             for (int i = 0; i < numFeatures; i++) {
                 w[i] = distribution(generator);
@@ -87,16 +86,14 @@ class LogisticRegression {
                 weightedSigmoid(Xtrain, numRowsX, numFeatures, probs);
                 for (int j = 0; j < numRowsX; j++) {
                     for (int k = 0; k < numFeatures; k++) {
-                        gradW[k] += ((probs[j] - y[j]) * Xtrain[j][k]);
+                        gradW[k] += (probs[j] - y[j]) * Xtrain[j][k];
                     }
                 }
 
                 // update rule
                 for (int j = 0; j < numFeatures; j++) {
                     w[j] -= eta * gradW[j];
-                    
                 }
-                cout << endl;
 
                 // break tolerance (optional, write later)
             }
@@ -108,18 +105,13 @@ class LogisticRegression {
 
         // free probs
         void predict(double** Xtest, int numRowsX, int numFeatures, int* result) {
-            cout << "weight after fit: " << endl;
-            for (int i = 0; i < 9; i++) {
-                cout << w[i] << ", ";
-            }
-            cout << endl;
             // apply trained weighted sigmoid to get probabilities
             double* probs = new double[numRowsX];
             weightedSigmoid(Xtest, numRowsX, numFeatures, probs);
 
-            for (int i = 0; i < numRowsX; i++) {
-                cout << "probs i=" << i << ": " << probs[i] << endl;
-            }
+            // for (int i = 0; i < numRowsX; i++) {
+            //     cout << "probs i=" << i << ": " << probs[i] << endl;
+            // }
 
             // compute the class predictions
             double threshold = 0.5; // take more likely value
@@ -134,6 +126,75 @@ class LogisticRegression {
             delete[] probs;
         }
 };
+
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
+    ifstream inputFile;
+    inputFile.open(dataFileStr);
+    cout << "open file" << endl;
+    
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        if (flag) {
+            flag = false;
+            continue;
+        }
+        int label;
+        double pixels[NUM_PIXELS];
+        string temp = "";
+
+        stringstream inputString(line);
+        // ss >> xData1 >> xData2 >> cls;
+        getline(inputString, temp, ',');
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+                // Xtrain[idx][i] /= MNIST_MAX;
+                // Xtrain[idx][i] -= MNIST_MEAN;
+                // Xtrain[idx][i] /= MNIST_STD;
+
+            }
+            Xtrain[idx][NUM_PIXELS] = 1.0; // add a bias term
+            ytrain[idx] = label;
+        } else {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+                // Xtest[idx][i] /= MNIST_MAX;
+                // Xtest[idx][i] -= MNIST_MEAN;
+                // Xtest[idx][i] /= MNIST_STD;
+            }
+            Xtest[idx][NUM_PIXELS] = 1.0; // add a bias term
+            ytest[idx] = label;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
+
+    }
+        
+    cout << "file read" << endl;
+    inputFile.close();
+    cout << "file closed" << endl;
+
+}
 
 // both yTrue and yPred have size elements
 double accuracy(int* yTrue, int* yPred, int size) {
@@ -151,19 +212,21 @@ double accuracy(int* yTrue, int* yPred, int size) {
 int main() {
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 891;
-    double testSize = 0.25;
-    double trainSize = 0.75;
-    int numTrain = ((trainSize) * numSamples) + 1;
+    int numSamples = 40000;
+    double testSize = 0.3;
+    double trainSize = 0.2;
+    int numTrain = trainSize * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 9; // 8 + bias
+    int numFeatures = NUM_PIXELS + 1; // add a bias term
+
+    cout << "numTrain = " << numTrain << endl;
+    cout << "numTest = " << numTest << endl; 
 
     // Logistic Regression hyperparameters
     double etaParam = 0.001; //1e-3
     double numItersParam = 1000;
     double toleranceParam = 0; // we're not using this 
 
-    
     cout << "defined params" << endl;
 
     //allocate memory for training and test data
@@ -183,112 +246,13 @@ int main() {
     cout << "finished allocation" << endl;
 
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    ifstream inputFile;
-    inputFile.open("titanic_prep.csv");
+    string dataFileStr = "idc_dataset40k_shuffled.csv";
 
-
-    cout << "open file" << endl;
-
-    string line = "";
-    int total = 0;
-    bool flag = true;
-    int idx = 0;
-    while (getline(inputFile, line)) {
-        if (flag) {
-            flag = false;
-            continue;
-        }
-        double xData1;
-        double xData2;
-        double xData3;
-        double xData4;
-        double xData5;
-        double xData6;
-        double xData7;
-        double xData8;
-        double xData9;
-        int cls;
-        int rowNum;
-        string temp = "";
-
-        stringstream inputString(line);
-        getline(inputString, temp, ',');
-        rowNum = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData1 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        cls = atoi(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData2 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData3 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData4 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData5 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData6 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData7 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData8 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData9 = atof(temp.c_str());
-
-        if (total == numTrain) {
-            idx = 0;
-        }
-        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        cout << xData1 << ", " << xData2 << ", " << xData3 << ", " << xData4 << ", " << xData5 << ", " << xData6 << ", " << xData7 << ", " << xData8 << ", " << xData9 << " | cls = " << cls << endl;
-        if (total < numTrain) {
-            Xtrain[idx][0] = xData2;
-            Xtrain[idx][1] = xData3;
-            Xtrain[idx][2] = xData4;
-            Xtrain[idx][3] = xData5;
-            Xtrain[idx][4] = xData6;
-            Xtrain[idx][5] = xData7;
-            Xtrain[idx][6] = xData8;
-            Xtrain[idx][7] = xData9;
-            Xtrain[idx][8] = 1.0; // add bias term
-            ytrain[idx] = cls;
-        } else {
-            // Xtest[idx][0] = xData1;
-            cout << "iteration finished" << endl;
-            Xtest[idx][0] = xData2;
-            Xtest[idx][1] = xData3;
-            Xtest[idx][2] = xData4;
-            Xtest[idx][3] = xData5;
-            Xtest[idx][4] = xData6;
-            Xtest[idx][5] = xData7;
-            Xtest[idx][6] = xData8;
-            Xtest[idx][7] = xData9;
-            Xtest[idx][8] = 1.0; // add bias term
-            ytest[idx] = cls;
-        }
-
-        line = "";
-        total++;
-        idx++;
-
-        if (total == (numTrain + numTest)) {
-            break;
-        }
+    if (dataFileStr == "idc_dataset40k_shuffled.csv") {
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
+    } else {
+        cout << "File " << dataFileStr << " not supported" << endl;
     }
-
-    
-    cout << "file read" << endl;
-    inputFile.close();
-    cout << "file closed" << endl;
 
     // define the model
     LogisticRegression classifier = LogisticRegression(etaParam, numItersParam, toleranceParam);

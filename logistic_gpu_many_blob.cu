@@ -13,7 +13,8 @@
 
 using namespace std;
 
-#define NUM_FEATURES 3
+#define NUM_FEATURES 401 // CHANGE!
+#define NUM_PIXELS 400 // CHANGE!
 #define SEED 42
 
 inline
@@ -50,13 +51,14 @@ __global__ void kernelWeightedSigmoid(double* x, double* w, double* probs, int i
 // each thread updates w[id]
 // first, gradW[id] += (probs[j] - y[j]) * x[j][id], for all 0 <= j < numTrain
 // then, w[id] -= eta * gradW[id]
-__global__ void kernelUpdateWeight(double* x, int* y, double* w, double* probs, int numTrain, double eta) {
+__global__ void kernelUpdateWeight(double* x, int* y, double* w, double* probs, int numTrain, double eta, double* gradW) {
     int id = threadIdx.x; 
-    double val = 0; //gradW[id]
+    double val = gradW[id];
     for (int j = 0; j < numTrain; j++) {
         val += (probs[j] - (1.0 * y[j])) * x[(j * NUM_FEATURES) + id];
     }
     w[id] -= eta * val;
+    gradW[id] = val;
     // if (id == 0) {
     // printf("id = %d, val = %f\n", id, val);
     // }
@@ -159,6 +161,12 @@ class LogisticRegression {
         // free probs
         void predict(double** Xtest, int numRowsX, int numFeatures, int* result) {
             // apply trained weighted sigmoid to get probabilities
+            cout << "weight after fit: " << endl;
+            for (int i = 0; i < NUM_FEATURES; i++) {
+                cout << w[i] << ", ";
+            }
+            cout << endl;
+            
             double* probs = new double[numRowsX];
             weightedSigmoid(Xtest, numRowsX, numFeatures, probs);
 
@@ -192,16 +200,77 @@ double accuracy(int* yTrue, int* yPred, int size) {
     return (sum / (1.0 * size));
 }
 
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
+    ifstream inputFile;
+    inputFile.open(dataFileStr);
+    // cout << "open file" << endl;
+    
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        // if (flag) {
+        //     flag = false;
+        //     continue;
+        // }
+        int label;
+        double pixels[NUM_PIXELS];
+        string temp = "";
+
+        stringstream inputString(line);
+        // ss >> xData1 >> xData2 >> cls;
+        getline(inputString, temp, ',');
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        // // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+            }
+            ytrain[idx] = label;
+        } else {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+            }
+            ytest[idx] = label;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
+
+    }
+        
+    // cout << "file read" << endl;
+    inputFile.close();
+    // cout << "file closed" << endl;
+
+}
+
+
 // free yHatTest
 int main() {
     // get the data from csv
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 250;
+    int numSamples = 20000;
     double testSize = 0.1;
     int numTrain = (1 - testSize) * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 3; // 2 + 1 bias
+    int numFeatures = 401; // 100 + 1 bias - CHANGE!
 
     // Logistic Regression hyperparameters
     double eta = 0.001; //1e-3
@@ -228,67 +297,13 @@ int main() {
     cout << "finished allocation" << endl;
 
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    ifstream inputFile;
-    inputFile.open("blob_data.csv");
+    string dataFileStr = "blob_400d.csv"; // CHANGE!
 
-
-    cout << "open file" << endl;
-
-    string line = "";
-    int total = 0;
-    bool flag = true;
-    int idx = 0;
-    while (getline(inputFile, line)) {
-        if (flag) {
-            flag = false;
-            continue;
-        }
-        double xData1;
-        double xData2;
-        int cls;
-        string temp = "";
-
-        stringstream inputString(line);
-        // ss >> xData1 >> xData2 >> cls;
-        getline(inputString, temp, ',');
-        xData1 = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        xData2 = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        cls = atoi(temp.c_str());
-
-        
-
-        if (total == numTrain) {
-            idx = 0;
-        }
-        // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
-        if (total < numTrain) {
-            Xtrain[idx][0] = xData1;
-            Xtrain[idx][1] = xData2;
-            // add bias term
-            Xtrain[idx][2] = 1.0;
-            ytrain[idx] = cls;
-        } else {
-            Xtest[idx][0] = xData1;
-            Xtest[idx][1] = xData2;
-            // add bias term
-            Xtest[idx][2] = 1.0;
-            ytest[idx] = cls;
-        }
-
-        line = "";
-        total++;
-        idx++;
-
+    if (dataFileStr == "blob_400d.csv") { // CHANGE!
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
+    } else {
+        cout << "File " << dataFileStr << " not supported" << endl;
     }
-
-    
-    cout << "file read" << endl;
-    inputFile.close();
-    cout << "file closed" << endl;
-
     
     double* Xtrain1D = new double[numTrain * numFeatures];
     double* Xtest1D = new double[numTest * numFeatures];
@@ -334,10 +349,12 @@ int main() {
     double* gpuX;
     double* gpuW;
     double* gpuProbs;
+    double* gpuGradW;
     int* gpuY;
     cudaMalloc((void**)&gpuX, sizeof(double)*numTrain*numFeatures); 
     cudaMalloc((void**)&gpuW, sizeof(double)*numFeatures); 
     cudaMalloc((void**)&gpuProbs, sizeof(double)*numTrain);  
+    cudaMalloc((void**)&gpuGradW, sizeof(double)*numFeatures);  
     cudaMalloc((void**)&gpuY, sizeof(int)*numTrain); 
     
     struct timespec start, stop; 
@@ -347,6 +364,7 @@ int main() {
     //memcpy cpu to gpu: x, w, y
     cudaMemcpy(gpuX, Xtrain1D, sizeof(double)*numTrain*numFeatures, cudaMemcpyHostToDevice);
     cudaMemcpy(gpuW, w, sizeof(double)*numFeatures, cudaMemcpyHostToDevice);
+    cudaMemcpy(gpuGradW, gradW, sizeof(double)*numFeatures, cudaMemcpyHostToDevice);
     cudaMemcpy(gpuY, ytrain, sizeof(int)*numTrain, cudaMemcpyHostToDevice);
 
     //do training
@@ -363,7 +381,7 @@ int main() {
 
         //calculate weight gradient
         //__global__ void kernelUpdateWeight(double* x, int* y, double* w, double* probs, int numTrain, double eta) {
-        kernelUpdateWeight<<<dimGrid, dimBlock2>>>(gpuX, gpuY, gpuW, gpuProbs, numTrain, eta);
+        kernelUpdateWeight<<<dimGrid, dimBlock2>>>(gpuX, gpuY, gpuW, gpuProbs, numTrain, eta, gpuGradW);
     }
     // memcpy gpu to cpu: w
     cudaMemcpy(w, gpuW, sizeof(double)*numFeatures, cudaMemcpyDeviceToHost);
@@ -411,6 +429,7 @@ int main() {
     cudaFree(gpuW);
     cudaFree(gpuProbs);
     cudaFree(gpuY);
+    cudaFree(gpuGradW);
 
     cout << "done" << endl;
 }

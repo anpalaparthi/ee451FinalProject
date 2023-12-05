@@ -49,14 +49,14 @@ __global__ void kernel(int numIters, int size, int lenW, double* w, double* b, d
     myW[id] = 0;
     myB = 0;
     // if (id == 0) {
-    printf("id = %d, digit = %d, myB = %f\n", id, digit, myB);
+    // printf("id = %d, digit = %d, myB = %f\n", id, digit, myB);
     // }
 
-    for (int i = 0; i < 8400; i++) {
-        if (i % 1000 == 0) {
-            printf("id = %d, i = %d, X[i] = %f\n", id, i, X[i]);
-        }
-    }
+    // for (int i = 0; i < 8400; i++) {
+    //     if (i % 1000 == 0) {
+    //         printf("id = %d, i = %d, X[i] = %f\n", id, i, X[i]);
+    //     }
+    // }
 
     double result = 0;
     double xVal = 0;
@@ -120,7 +120,7 @@ __global__ void kernel(int numIters, int size, int lenW, double* w, double* b, d
     if (id == 0) {
         b[0] = myB;
     }
-    printf("digit = %d, id = %d, end w[id] = %f, b = %f\n", digit, id, w[id], b[0]);
+    // printf("digit = %d, id = %d, end w[id] = %f, b = %f\n", digit, id, w[id], b[0]);
     
 }
 
@@ -162,9 +162,9 @@ class SVM {
         double dotProduct(double* a, double* b, int size) {
             double sum = 0;
             for (int i = 0; i < size; i++) {
-                if (i % 100 == 0) {
-                    cout << "dot product i = " << i << ", a[i] = " << a[i] << ", b[i] = " << b[i] << endl;
-                }
+                // if (i % 100 == 0) {
+                //     cout << "dot product i = " << i << ", a[i] = " << a[i] << ", b[i] = " << b[i] << endl;
+                // }
                 sum += a[i] * b[i];
             }
             return sum;
@@ -304,10 +304,10 @@ class SVM {
         // FREE estimate
         double* predict(double** X, int size) { //self, X
             double* estimate = new double[size]; //hold dot products
-            cout << "inside predict" << endl;
-            cout << "predict w[0] = " << w[0] << endl;
-            cout << "predict b = " << b << endl;
-            cout << "predict X[0] = " << X[0][0] << endl;
+            // cout << "inside predict" << endl;
+            // cout << "predict w[0] = " << w[0] << endl;
+            // cout << "predict b = " << b << endl;
+            // cout << "predict X[0] = " << X[0][0] << endl;
             for (int i = 0; i < size; i++) {
                 // cout << "predict i = " << i << endl;
                 estimate[i] = dotProduct(X[i], w, NUM_PIXELS);
@@ -849,12 +849,12 @@ int main() {
     checkCuda( cudaEventRecord(startEvent,0) );
     for (int i = 0; i < nStreams; i++) { //nStreams = NUM_CLASSES
             
-            cout << "iters = " << iters << endl;
-            cout << "numTrain = " << numTrain << endl;
-            cout << "numFeatures = " << numFeatures << endl;
-            cout << "learningRate = " << learningRate << endl;
-            cout << "lamba = " << lamba << endl;
-            cout << "i = " << i << endl;
+            // cout << "iters = " << iters << endl;
+            // cout << "numTrain = " << numTrain << endl;
+            // cout << "numFeatures = " << numFeatures << endl;
+            // cout << "learningRate = " << learningRate << endl;
+            // cout << "lamba = " << lamba << endl;
+            // cout << "i = " << i << endl;
             // checkCuda( cudaMemcpyAsync(gpuWeights[i], weights[i], 
             //                     sizeof(double)*numFeatures, cudaMemcpyHostToDevice, 
             //                     stream[i]) );

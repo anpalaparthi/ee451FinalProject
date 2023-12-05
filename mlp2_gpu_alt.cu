@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-// #include <cublas.h>
+#include <cublas.h>
 #include <time.h>
 #include <cmath>
 #include <random>
@@ -15,8 +15,130 @@
 #include <sstream>
 
 #define SEED 100
+#define HIDDEN_LAYER 3
+#define OUTPUT_LAYER 2
+#define LR 0.00005
 
 using namespace std;
+
+inline
+cudaError_t checkCuda(cudaError_t result)
+{
+#if defined(DEBUG) || defined(_DEBUG)
+  if (result != cudaSuccess) {
+    fprintf(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+    assert(result == cudaSuccess);
+  }
+#endif
+  return result;
+}
+
+
+
+// number of threads = hiddenLayer
+// each thread computes 1 element for outputL1[]
+// x = (1 x inputLayer), weightHidden = (inputLayer x hiddenLayer)
+// outputL1 = 1 x hiddenLayer
+// outputL1[id] = dot product x and weightHidden[:][id] (: from 0 to inputLayer)
+// outputL1[id] = sigmoid(outputL1[id] + biasHidden[id])
+//   sigmoid = 1.0 / (1.0 + exp(-1.0 * val))
+
+//hiddenLayer > outputLayer, so hiddenLayer number of threads
+__global__ void kernel(int maxEpochs, int numSamples, int inputLayer, int hiddenLayer, int outputLayer, double* xtrain, double* weightHidden, 
+                        double* biasHidden, double* weightOutput, double* biasOutput, int* y) {
+    int id = threadIdx.x;       
+    __shared__ double outputL1[HIDDEN_LAYER];
+    __shared__ double deltaOutput[OUTPUT_LAYER];
+    double outputL2Id;
+    double outputVal;
+    double* x;
+
+    double lr = LR;
+
+    // if (id == 0) {
+    //     printf("id = %d, maxEpochs = %d, numSamples = %d, inputLayer = %d, hiddenLayer = %d, outputLayer = %d, lr = %f\n", 
+    //             id, maxEpochs, numSamples, inputLayer, hiddenLayer, outputLayer, lr);
+    // }
+    
+    for (int epoch = 0; epoch < maxEpochs; epoch++) {
+        // if ((id == 0) && (epoch % 100 == 0)) {
+        //     printf("epoch = %d\n", epoch);
+        // }
+        for (int sample = 0; sample < numSamples; sample++) {
+            //Forward propagation
+            x = &xtrain[sample * inputLayer];
+            //kernelOutputL1 = hiddenLayers, all threads
+                                   
+            double val1 = 0;
+            for (int i = 0; i < inputLayer; i++) {
+                val1 = val1 + ((1.0 * x[i]) * weightHidden[(i * hiddenLayer) + id]);
+            }
+            val1 = val1 + biasHidden[id];
+            outputL1[id] = 1.0 / (1.0 + exp(-1.0 * val1));
+            __syncthreads();
+ 
+            // outputLayer, some threads
+            if (id < outputLayer) {
+                //kernelOutputL2
+                double val2 = 0;
+                for (int i = 0; i < hiddenLayer; i++) {
+                    val2 = val2 + (outputL1[i] * weightOutput[(i * outputLayer) + id]);
+                }
+                val2 = val2 + biasOutput[id];
+                outputL2Id = 1.0 / (1.0 + exp(-1.0 * val2));
+
+                if (id == y[sample]) {
+                    outputVal = 1;
+                    // printf("id = %d, output = 1\n", id);
+                } else {
+                    outputVal = 0;
+                    // printf("id = %d, output = 0\n", id);
+                }
+                // printf("id = %d, output[%d] = %d\n", id, id, output[id]);
+                // __syncthreads();
+
+                //kernelUpdateWeightOutput
+                double outputL2Val = outputL2Id;
+                double deltaVal = (1.0 * outputVal) - outputL2Val;
+                deltaVal = (-1.0) * deltaVal - (outputL2Val * (1.0 - outputL2Val));
+
+                for (int i = 0; i < hiddenLayer; i++) {
+                    weightOutput[(i * outputLayer) + id] = weightOutput[(i * outputLayer) + id] - (lr * deltaVal * outputL1[i]);
+                }
+                biasOutput[id] -= (lr * deltaVal * hiddenLayer);
+                // biasOutput[id] = biasOutput[id] - (lr * deltaVal);
+                deltaOutput[id] = deltaVal;
+            }
+            __syncthreads();
+            
+            //kernelUpdateWeightHidden = hiddenLayers, all threads
+            double outputL1Val = outputL1[id];
+            double deltaValHidden;
+            /*
+            double* product = new double[hiddenLayer * 1];
+            for (int i = 0; i < hiddenLayer; i++) {
+                product[i] = 0;
+                for (int k = 0; k < outputLayer; k++) {
+                    product[i] += weightOutput[(i * outputLayer) + k] + deltaOutput[k];
+                }
+            }
+            */
+            double productVal = 0;
+            for (int k = 0; k < outputLayer; k++) {
+                productVal = productVal + (weightOutput[(id * outputLayer) + k] + deltaOutput[k]);
+            }
+
+            deltaValHidden = productVal * (outputL1Val * (1.0 - outputL1Val));
+
+            for (int i = 0; i < inputLayer; i++) {
+                weightHidden[(i * hiddenLayer) + id] = weightHidden[(i * hiddenLayer) + id] - (lr * deltaValHidden * x[i]);
+            }
+            biasHidden[id] -= (lr * deltaValHidden * inputLayer);
+            // biasHidden[id] = biasHidden[id] - (lr * deltaValHidden);
+            __syncthreads();
+        }
+    }
+}
 
 class MLP {
     private:
@@ -64,7 +186,7 @@ class MLP {
                 for (int i = 0; i < inputLayer; i++) {
                     for (int j = 0; j < hiddenLayer; j++) {
                         weightHidden[(i * hiddenLayer) + j] = (2.0 * ((double) rand() / (RAND_MAX))) - 1;
-                        // weightHidden[(i * hiddenLayer) + j] = ((double) rand() / (RAND_MAX)) + 1;
+                        // weightHidden[(i * hiddenLayer) + j] = ((double) rand() / (RAND_MAX)) - 1;
                     }
                 }
 
@@ -72,7 +194,7 @@ class MLP {
                 for (int i = 0; i < hiddenLayer; i++) {
                     for (int j = 0; j < outputLayer; j++) {
                         weightOutput[(i * outputLayer) + j] = (2.0 * ((double) rand() / (RAND_MAX))) - 1;
-                        // weightOutput[(i * outputLayer) + j] = ((double) rand() / (RAND_MAX)) + 1;
+                        // weightOutput[(i * outputLayer) + j] = ((double) rand() / (RAND_MAX)) - 1;
                     }
                 }
 
@@ -85,7 +207,7 @@ class MLP {
                 for (int i = 0; i < outputLayer; i++) {
                     biasOutput[i] = biasOutputValue;
                 }
-                
+
                 //print weightHidden
                 for (int i = 0; i < inputLayer; i++) {
                     for (int j = 0; j < hiddenLayer; j++) {
@@ -121,12 +243,12 @@ class MLP {
         // output = outputLayer x 1
         // outputL1 = hiddenLayer x 1
         // outputL2 = outputLayer x 1
-        void backPropagation(double* input, int* output, double* outputL1, double* outputL2) {
+        void backPropagation(double* input, double* output, double* outputL1, double* outputL2) {
             // Error output layer
             double* deltaOutput = new double[outputLayer];
             for (int i = 0; i < outputLayer; i++) {
                 //errorOutput = output - outputL2
-                deltaOutput[i] = (1.0 * output[i]) - outputL2[i];
+                deltaOutput[i] = output[i] - outputL2[i];
 
                 //deltaOutput = -1*errorOutput*deriv(outputL2)
                 deltaOutput[i] = (-1.0) * deltaOutput[i] - derivativeSingle(outputL2[i]);
@@ -136,12 +258,8 @@ class MLP {
             for (int i = 0; i < hiddenLayer; i++) {
                 for (int j = 0; j < outputLayer; j++) {
                     weightOutput[(i * outputLayer) + j] -= (lr * deltaOutput[j] * outputL1[i]);
-                    // biasOutput[j] -= (lr * deltaOutput[j]);
+                    biasOutput[j] -= (lr * deltaOutput[j]);
                 }
-            }
-
-            for (int j = 0; j < outputLayer; j++) {
-                biasOutput[j] -= (lr * deltaOutput[j]);
             }
 
             // hidden layer
@@ -169,11 +287,8 @@ class MLP {
             for (int i = 0; i < inputLayer; i++) {
                 for (int j = 0; j < hiddenLayer; j++) {
                     weightHidden[(i * hiddenLayer) + j] -= (lr * deltaHidden[j] * input[i]);
+                    biasHidden[j] -= (lr * deltaHidden[j]);
                 }
-            }
-
-            for (int j = 0; j < hiddenLayer; j++) {
-                biasHidden[j] -= (lr * deltaHidden[j]);
             }
 
             delete[] deltaOutput;
@@ -182,65 +297,125 @@ class MLP {
         }
         
         void fit(double* xtrain, int* ytrain, int numSamples) {
-            int* output = new int[numClasses]; // numClasses = outputLayer
-            double* outputL1 = new double[hiddenLayer];
-            double* outputL2 = new double[outputLayer];
-            double* x;
-            for (int epoch = 0; epoch < maxEpochs; epoch++) {
-                if (epoch % 50 == 0) {
-                    cout << "epoch = " << epoch << endl;
-                }
-                for (int sample = 0; sample < numSamples; sample++) {
-                    //Forward propagation
-                    x = &xtrain[sample * inputLayer];
-                    // find outputL1 = sigmoid(input x weightHidden + biasHidden.T)
-                    // (input is transposed to 1 x inputLayer, weightHidden = inputLayer x hiddenLayer)
-                    // input x weightHidden (1 x inputLayer) x (inputLayer x hiddenLayer)
-                    for (int i = 0; i < hiddenLayer; i++) {
-                        outputL1[i] = 0;
-                        for (int j = 0; j < inputLayer; j++) {
-                            outputL1[i] += x[j] * weightHidden[(j * hiddenLayer) + i];
-                        }
-                        outputL1[i] = sigmoidSingle(outputL1[i] + biasHidden[i]);
-                    }
+            // double* output = new double[numClasses]; // numClasses = outputLayer
+            // double* outputL1 = new double[hiddenLayer];
+            // double* outputL2 = new double[outputLayer];
 
-                    // find outputL2 = sigmoid(outputL1 x weightOutput + biasOutput.T)
-                    // outputL1 = (transposed) 1 x hiddenLayer
-                    // weightOutput = hiddenLayer x outputLayer
-                    // outputL2 = (1 x hiddenLayer) x (hiddenLayer x outputLayer) = 1 x outputLayer
-                    for (int i = 0; i < outputLayer; i++) {
-                        outputL2[i] = 0;
-                        for (int j = 0; j < hiddenLayer; j++) {
-                            outputL2[i] += outputL1[j] * weightOutput[(j * outputLayer) + i];
-                        }
-                        outputL2[i] = sigmoidSingle(outputL2[i] + biasOutput[i]);
-                    }
+            double* gpuX;
+            double* gpuWeightHidden;
+            double* gpuBiasHidden;
+            double* gpuWeightOutput;
+            double* gpuBiasOutput;
+            int* gpuY;
 
-                    // one-hot encoding
-                    // for (int i = 0; i < numClasses; i++) {
-                    //     output[i] = 0;
-                    // }
-                    // output[(int)(y[sample])] = 1;
-                    if (ytrain[sample] == 0) {
-                        output[0] = 1;
-                        output[1] = 0;
-                    } else {
-                        output[0] = 0;
-                        output[1] = 1;
-                    }
 
-                    //backprop
-                    backPropagation(x, output, outputL1, outputL2);
-                }
-            }
+            cudaMalloc((void**)&gpuX, sizeof(double)*numSamples*inputLayer);
+            cudaMalloc((void**)&gpuWeightHidden, sizeof(double)*inputLayer*hiddenLayer); 
+            cudaMalloc((void**)&gpuWeightOutput, sizeof(double)*hiddenLayer*outputLayer); 
+            cudaMalloc((void**)&gpuBiasHidden, sizeof(double)*hiddenLayer); 
+            cudaMalloc((void**)&gpuBiasOutput, sizeof(double)*outputLayer); 
+            cudaMalloc((void**)&gpuY, sizeof(int)*numSamples); 
 
-            delete[] output;
-            delete[] outputL1;
-            delete[] outputL2;
+            struct timespec start, stop; 
+            double time;
+            if( clock_gettime( CLOCK_REALTIME, &start) == -1 ) { perror( "clock gettime" );}
+
+            cudaMemcpy(gpuX, xtrain, sizeof(double)*numSamples*inputLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuWeightHidden, weightHidden, sizeof(double)*inputLayer*hiddenLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuWeightOutput, weightOutput, sizeof(double)*hiddenLayer*outputLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuBiasHidden, biasHidden, sizeof(double)*hiddenLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuBiasOutput, biasOutput, sizeof(double)*outputLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuY, ytrain, sizeof(int)*numSamples, cudaMemcpyHostToDevice);
+
+            dim3 dimGrid(1);
+            dim3 dimBlock(hiddenLayer);
+
+            // __global__ void kernel(int maxEpochs, int numSamples, int inputLayer, int hiddenLayer, int outputLayer, int lr, double* xtrain, double* weightHidden, 
+            //             double* biasHidden, double* weightOutput, double* biasOutput, int* y) {
+            kernel<<<dimGrid, dimBlock>>>(maxEpochs, numSamples, inputLayer, hiddenLayer, outputLayer, gpuX, 
+                                            gpuWeightHidden, gpuBiasHidden, gpuWeightOutput, gpuBiasOutput, gpuY);
+
+            cudaMemcpy(weightHidden, gpuWeightHidden, sizeof(double)*inputLayer*hiddenLayer, cudaMemcpyDeviceToHost);
+            cudaMemcpy(weightOutput, gpuWeightOutput, sizeof(double)*hiddenLayer*outputLayer, cudaMemcpyDeviceToHost);
+            cudaMemcpy(biasHidden, gpuBiasHidden, sizeof(double)*hiddenLayer, cudaMemcpyDeviceToHost);
+            cudaMemcpy(biasOutput, gpuBiasOutput, sizeof(double)*outputLayer, cudaMemcpyDeviceToHost);
+            
+            if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) { perror( "clock gettime" );}	  
+            time = (stop.tv_sec - start.tv_sec)+ (double)(stop.tv_nsec - start.tv_nsec)/1e9;
+            printf("time is %f sec\n", time);	
+
+            cudaFree(gpuX);
+            cudaFree(gpuWeightHidden);
+            cudaFree(gpuBiasHidden);
+            cudaFree(gpuWeightOutput);
+            cudaFree(gpuBiasOutput);
+            cudaFree(gpuY); 
         }
 
         //prediction = empty array allocated for size = num * numClasses
+        /*
         void predict(double* xtest, int* prediction, int num) {
+            double* outputL1 = new double[hiddenLayer];
+            double* outputL2 = new double[outputLayer];
+            double* x;
+            int* p;
+            for (int sample = 0; sample < num; sample++) {
+                //Forward propagation
+                x = &xtest[sample * inputLayer];
+                p = &prediction[sample * numClasses];
+                // find outputL1 = sigmoid(input x weightHidden + biasHidden.T)
+                // (input is transposed to 1 x inputLayer, weightHidden = inputLayer x hiddenLayer)
+                // input x weightHidden (1 x inputLayer) x (inputLayer x hiddenLayer)
+                for (int i = 0; i < hiddenLayer; i++) {
+                    outputL1[i] = 0;
+                    for (int j = 0; j < inputLayer; j++) {
+                        outputL1[i] += x[j] * weightHidden[(j * hiddenLayer) + i];
+                    }
+                    outputL1[i] = sigmoidSingle(outputL1[i] + biasHidden[i]);
+                }
+
+                // find outputL2 = sigmoid(outputL1 x weightOutput + biasOutput.T)
+                // outputL1 = (transposed) 1 x hiddenLayer
+                // weightOutput = hiddenLayer x outputLayer
+                // outputL2 = (1 x hiddenLayer) x (hiddenLayer x outputLayer) = 1 x outputLayer
+                for (int i = 0; i < outputLayer; i++) {
+                    outputL2[i] = 0;
+                    for (int j = 0; j < hiddenLayer; j++) {
+                        outputL2[i] += outputL1[j] * weightOutput[(j * outputLayer) + i];
+                    }
+                    outputL2[i] = sigmoidSingle(outputL2[i] + biasOutput[i]);
+                }
+
+                double max = -1;
+                int maxId = -1;
+                for (int i = 0; i < numClasses; i++) {
+                    if (outputL2[i] > max) {
+                        max = outputL2[i];
+                        maxId = i;
+                    }
+                }
+                
+                // one-hot encoding
+                // for (int i = 0; i < numClasses; i++) {
+                //     output[i] = 0;
+                // }
+                // output[(int)(y[sample])] = 1;
+                if (maxId == 0) {
+                    p[0] = 1;
+                    p[1] = 0;
+                } else {
+                    p[0] = 0;
+                    p[1] = 1;
+                }
+                cout << "maxId = " << maxId << ", outputL2[0] = " << outputL2[0] << ", outputL2[1] = " << outputL2[1] << endl;  
+            }
+
+            delete[] outputL1;
+            delete[] outputL2;
+        }
+        */
+       void predict(double* xtest, int* prediction, int num) {
+            //forward propogation
             double* outputL1 = new double[hiddenLayer];
             double* outputL2 = new double[outputLayer];
             double* x;
@@ -283,7 +458,7 @@ class MLP {
 
                 double max = -1;
                 int maxId = -1;
-                for (int i = 0; i < numClasses; i++) {
+                for (int i = 0; i < outputLayer; i++) {
                     if (outputL2[i] > max) {
                         max = outputL2[i];
                         maxId = i;
@@ -291,10 +466,10 @@ class MLP {
                 }
                 
                 // one-hot encoding
-                // for (int i = 0; i < numClasses; i++) {
-                //     output[i] = 0;
+                // for (int i = 0; i < outputLayer; i++) {
+                //     p[i] = 0;
                 // }
-                // output[(int)(y[sample])] = 1;
+                // p[maxId] = 1;
                 if (maxId == 0) {
                     p[0] = 1;
                     p[1] = 0;
@@ -302,6 +477,8 @@ class MLP {
                     p[0] = 0;
                     p[1] = 1;
                 }
+                
+                
                 if (sample % 2 == 0) {
                     cout << "x: ";
                     for (int i = 0; i < inputLayer; i++) {
@@ -329,18 +506,20 @@ class MLP {
                     }
                     cout << endl;
                     cout << "weightHidden: " ;
-                    // for (int i = 0; i < outputLayer; i++) {
-                        cout << weightHidden[0] << " " << weightHidden[3]<< " " << weightHidden[4]<< " " << weightHidden[5]<< " " << weightHidden[6] << endl;
-                    // }
+                    for (int i = 0; i < (inputLayer * hiddenLayer); i++) {
+                        cout << weightHidden[i] << " ";
+                    }
                     cout << endl;  
                     cout << "weightOutput: " ;
-                    // for (int i = 0; i < outputLayer; i++) {
-                        cout << weightOutput[0] << " " << weightOutput[3]<< " " << weightOutput[4]<< " " << weightOutput[5]<< " " << weightOutput[6] << endl;
-                    // }
+                    for (int i = 0; i < (hiddenLayer * outputLayer); i++) {
+                        cout << weightOutput[i] << " ";
+                    }
                     cout << endl;  
-                }            
+                }
+                
+                
             }
-            
+
             delete[] outputL1;
             delete[] outputL2;
         }
@@ -373,9 +552,9 @@ int main() {
     int biasOutputValue = -1;
 
     // SVM hyperparameters
-    double learningRate = 0.001; //1e-3
-    double iters = 10; //10 iters, lr = 0.001 --> 100% blobs
-    // double iters = 1;
+    double learningRate = 0.0001; //1e-3
+    double iters = 1000;
+    // double iters = 10;
     
     cout << "defined params" << endl;
 
@@ -432,8 +611,8 @@ int main() {
         if (total == numTrain) {
             idx = 0;
         }
-        // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
         if (total < numTrain) {
             Xtrain[idx][0] = xData1;
             Xtrain[idx][1] = xData2;
@@ -469,17 +648,8 @@ int main() {
     MLP classifier = MLP(numFeatures, numHidden, numClasses, learningRate, iters, 
                             biasHiddenValue, biasOutputValue, numClasses);
     
-    struct timespec start, stop; 
-    double time;
-    if( clock_gettime(CLOCK_REALTIME, &start) == -1) { perror("clock gettime");}
-	
     classifier.fit(Xtrain1D, ytrain, numTrain);
-    if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) { perror("clock gettime");}		
-    time = (stop.tv_sec - start.tv_sec)+ (double)(stop.tv_nsec - start.tv_nsec)/1e9;
-
     cout << "classifier trained" << endl;
-    printf("Training Execution Time: %f sec\n", time);
-
 
     int* predictions = new int[numTest * numClasses];
     classifier.predict(Xtest1D, predictions, numTest);

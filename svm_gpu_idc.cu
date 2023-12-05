@@ -19,94 +19,21 @@
 
 using namespace std;
 
-#define NUM_FEATURES 2
-#define NUM_PIXELS 2
+#define NUM_PIXELS 7500
 
 //NUM_FEATURES = lenW = 2
 // kernel<<<dimGrid, (numIters, size, lenW, gpuW, b, gpuCLS, gpuX, lr, lambdaParam);				
-/*
-__global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam) {
+
+__global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam, double* x) {
 
     int id = threadIdx.x;
-    printf("id = %d\n", id);
-    __shared__ double myW[NUM_FEATURES];
+    double wVal = 0;
+    // __shared__ double myW[NUM_PIXELS];
     __shared__ bool constraint;
     __shared__ double myB;
-    __shared__ double x[NUM_FEATURES];
-    myW[id] = w[id];
-    myB = b[0];
-    // if (id == 0) {
-    //     printf("id = 0, myB = %f\n",myB);
-    // }
-    double result = 0;
-    double xVal = 0;
-    for (int i = 0; i < numIters; i++) {
-        for (int j = 0; j < size; j++) {
-            //check constraint: dotProduct with recursive doubling
-            xVal = X[(j * NUM_FEATURES) + id];
-            x[id] = xVal * myW[id];
-            // if ((id == 0) && (i % 100 == 0) && (j == 0)) {
-            //     printf("id = 0, i = %d, myW[id] = %f, xVal = %f, cls[j] = %f\n", i, myW[id], xVal, cls[j]);
-            // }
-            for (int k = 2; k <= lenW; k *= 2) {
-                __syncthreads();
-                if ((id % k) == 0) {
-                    x[id] += x[id + (k/2)];
-                }
-            }
+    // __shared__ double x[NUM_PIXELS];
 
-            if (id == 0) {
-                result = x[id] + myB;
-                // if ((i % 100 == 0) && (j == 0)) {
-                //     printf("id = 0, i = %d, result = %f\n", i, result);
-                // }
-                if ((cls[j] * result) >= 1) {
-                    constraint = true;
-                    // myB = 0;
-                } else {
-                    constraint = false;
-                    myB -= lr * (-cls[j]);
-                }
-                // if ((i % 100 == 0) && (j == 0)) {
-                //     printf("id = 0, i = %d, constraint = %d\n", i, constraint);
-                // }
-                
-            }
-
-            //get and update gradients
-            if (constraint) {
-                myW[id] = myW[id] - (lr * myW[id] * lambdaParam);
-                // if ((id == 0) && (i % 100 == 0) && (j == 0)) {
-                //     printf("constrain: myW[id] = %f\n", myW[id]);
-                // }
-            } else {
-                myW[id] = myW[id] - (lr * ((lambdaParam * myW[id]) - (cls[j] * xVal)));
-                // if ((id == 0) && (i % 100 == 0) && (j == 0)) {
-                //     printf("else constrain: myW[id] = %f\n", myW[id]);
-                // }
-            }
-            
-        }
-        __syncthreads();
-    }
-    
-    w[id] = myW[id];
-    if (id == 0) {
-        b[0] = myB;
-        // printf("end w[id] = %f, b = %f\n", w[id], b[0]);
-    }
-}
-*/
-
-__global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam) {
-
-    int id = threadIdx.x;
-    __shared__ double myW[NUM_PIXELS];
-    __shared__ bool constraint;
-    __shared__ double myB;
-    __shared__ double x[NUM_PIXELS];
-
-    myW[id] = 0;
+    // myW[id] = 0;
     myB = 0;
     // if (id == 0) {
     // printf("id = %d, digit = %d, myB = %f\n", id, digit, myB);
@@ -127,7 +54,8 @@ __global__ void kernel(int numIters, int size, int lenW, double* w, double* b, d
             xVal = X[(j * NUM_PIXELS) + id];
 
             // xVal = X[(j * BAD_PIXELS) + id];
-            x[id] = xVal * myW[id];
+            // x[id] = xVal * myW[id];
+            x[id] = xVal * wVal;
             __syncthreads();
             /*
             for (int k = 2; k <= MORE_PIXELS; k *= 2) {
@@ -167,23 +95,24 @@ __global__ void kernel(int numIters, int size, int lenW, double* w, double* b, d
 
             //get and update gradients
             if (constraint) {
-                myW[id] = myW[id] - (lr * myW[id] * lambdaParam);
+                // myW[id] = myW[id] - (lr * myW[id] * lambdaParam);
+                wVal = wVal - (lr * wVal * lambdaParam);
             } else {
-                myW[id] = myW[id] - (lr * ((lambdaParam * myW[id]) - (cls[j] * xVal)));
+                // myW[id] = myW[id] - (lr * ((lambdaParam * myW[id]) - (cls[j] * xVal)));
+                wVal = wVal - (lr * ((lambdaParam * wVal) - (cls[j] * xVal)));
             }
             
         }
         __syncthreads();
     }
     
-    w[id] = myW[id];
+    w[id] = wVal;
     if (id == 0) {
         b[0] = myB;
     }
     // printf("digit = %d, id = %d, end w[id] = %f, b = %f\n", digit, id, w[id], b[0]);
     
 }
-
 
 class SVM {
 
@@ -223,9 +152,9 @@ class SVM {
         double dotProduct(double* a, double* b, int size) {
             double sum = 0;
             for (int i = 0; i < size; i++) {
-                if (i % 100 == 0) {
-                    cout << "dot product i = " << i << ", a[i] = " << a[i] << ", b[i] = " << b[i] << endl;
-                }
+                // if (i % 100 == 0) {
+                //     cout << "dot product i = " << i << ", a[i] = " << a[i] << ", b[i] = " << b[i] << endl;
+                // }
                 sum += a[i] * b[i];
             }
             return sum;
@@ -298,34 +227,37 @@ class SVM {
             double* gpuCLS;
             double* gpuW;
             double* gpuB;
+            double* gpuXGlobal;
 
             double* bArr = new double[1];
             bArr[0] = b;
 
 	        cudaMalloc((void**)&gpuX, sizeof(double)*size*numFeatures); 
 	        cudaMalloc((void**)&gpuCLS, sizeof(double)*size); 
-	        cudaMalloc((void**)&gpuW, sizeof(double)*lenW);  
-	        cudaMalloc((void**)&gpuB, sizeof(double)); 
+	        cudaMalloc((void**)&gpuW, sizeof(double)*numFeatures);  
+	        cudaMalloc((void**)&gpuB, sizeof(double));   
+	        cudaMalloc((void**)&gpuXGlobal, sizeof(double)*NUM_PIXELS); 
             struct timespec start, stop; 
             double time;
             if( clock_gettime( CLOCK_REALTIME, &start) == -1 ) { perror( "clock gettime" );}
             
 	        cudaMemcpy(gpuX, X, sizeof(double)*size*numFeatures, cudaMemcpyHostToDevice);
 	        cudaMemcpy(gpuCLS, clsMap, sizeof(double)*size, cudaMemcpyHostToDevice);
-	        cudaMemcpy(gpuW, w, sizeof(double)*lenW, cudaMemcpyHostToDevice);
+	        cudaMemcpy(gpuW, w, sizeof(double)*numFeatures, cudaMemcpyHostToDevice);
             cudaMemcpy(gpuB, bArr, sizeof(double), cudaMemcpyHostToDevice);
 
             //kernel(int numIters, int size, int lenW, double* w, double b, double* cls, double* X) {
             // cout << "lenW = " << lenW << endl;
             dim3 dimGrid(1);
             dim3 dimBlock(lenW);
-            	
-            kernel<<<dimGrid, dimBlock>>>(numIters, size, lenW, gpuW, gpuB, gpuCLS, gpuX, lr, lambdaParam);				
+            //__global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam, int digit) {
+
+            kernel<<<dimGrid, dimBlock>>>(numIters, size, numFeatures, gpuW, gpuB, gpuCLS, gpuX, lr, lambdaParam, gpuXGlobal);				
  
             
             // cudaMemcpy(X, gpuX, sizeof(double)*size*numFeatures, cudaMemcpyDeviceToHost);
 	        // cudaMemcpy(clsMap, gpuCLS, sizeof(double)*size, cudaMemcpyDeviceToHost);
-	        cudaMemcpy(w, gpuW, sizeof(double)*lenW, cudaMemcpyDeviceToHost);
+	        cudaMemcpy(w, gpuW, sizeof(double)*numFeatures, cudaMemcpyDeviceToHost);
 	        cudaMemcpy(bArr, gpuB, sizeof(double), cudaMemcpyDeviceToHost);
 
             if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) { perror( "clock gettime" );}	  
@@ -340,6 +272,7 @@ class SVM {
             cudaFree(gpuCLS);  
             cudaFree(gpuW);  
             cudaFree(gpuB);
+            cudaFree(gpuXGlobal);
 
         }
 
@@ -361,6 +294,8 @@ class SVM {
                     estimate[i] = 1;
                 }
             }
+
+            cout << "weight: " << w[0] << ", " << w[34] << ", " << w[1450] << ", " << w[2354] << ", " << w[6458] << endl; 
             return estimate;
         }
 
@@ -370,13 +305,82 @@ class SVM {
 double accuracy(int* yTrue, int* yPred, int size) {
     double sum = 0;
     for (int i = 0; i < size; i++) {
-        cout << "yTrue " << yTrue[i] << " | " << "yPred " << yPred[i] << endl;
+        if (i % 100 == 0) {
+            cout << "yTrue " << yTrue[i] << " | " << "yPred " << yPred[i] << endl;
+        }
         if (yTrue[i] == yPred[i]) {
             sum++;
         }
     }
     return (sum / (1.0 * size));
 }
+
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
+    ifstream inputFile;
+    inputFile.open(dataFileStr);
+    cout << "open file" << endl;
+    
+    if (!inputFile) {
+        cout << "AAAAAAA file not open" << endl;
+    } else {
+        cout << "BBBBBBB file opened" << endl;
+    }
+
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        // if (flag) {
+        //     flag = false;
+        //     continue;
+        // }
+        int label;
+        double pixels[NUM_PIXELS];
+        string temp = "";
+
+        stringstream inputString(line);
+        // ss >> xData1 >> xData2 >> cls;
+        getline(inputString, temp, ',');
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+            }
+            ytrain[idx] = label;
+        } else {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+            }
+            ytest[idx] = label;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
+
+    }
+        
+    cout << "file read" << endl;
+    inputFile.close();
+    cout << "file closed" << endl;
+
+}
+
 
 void parseBlobData(string dataFileStr, double** Xtrain, int* ytrain, int numTrain, double** Xtest, int* ytest) {
     ifstream inputFile;
@@ -433,90 +437,23 @@ void parseBlobData(string dataFileStr, double** Xtrain, int* ytrain, int numTrai
 
 }
 
-// FINISH THIS?
-/*
-void parseTitanicData(string dataFileStr, double** Xtrain, double* ytrain, , double** Xtest, double* ytest) {
-    ifstream inputFile;
-    inputFile.open(dataFileStr);
-    cout << "open file" << endl;
-    
-    string line = "";
-    int total = 0;
-    bool flag = true;
-    int idx = 0;
-    while (getline(inputFile, line)) {
-        if (flag) {
-            flag = false;
-            continue;
-        }
-        int p1;
-        int survived;
-        int pclass;
-        // string name;
-        string sex;
-        int age;
-        int sibSp;
-        int parch;
-        string ticket;
-        double fare;
-        string cabin;
-        string embarked;
-
-        string temp = "";
-
-        stringstream inputString(line);
-        // ss >> xData1 >> xData2 >> cls;
-        getline(inputString, temp, ',');
-        p1 = atoi(temp.c_str());
-        getline(inputString, temp, ',');
-        survived = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        pclass = atoi(temp.c_str());
-
-        
-
-        if (total == numTrain) {
-            idx = 0;
-        }
-        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
-        if (total < numTrain) {
-            Xtrain[idx][0] = xData1;
-            Xtrain[idx][1] = xData2;
-            ytrain[idx] = cls;
-        } else {
-            Xtest[idx][0] = xData1;
-            Xtest[idx][1] = xData2;
-            ytest[idx] = cls;
-        }
-
-        line = "";
-        total++;
-        idx++;
-
-    }
-        
-    cout << "file read" << endl;
-    inputFile.close();
-    cout << "file closed" << endl;
-
-}
-*/
 
 int main() {
 
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 250;
-    double testSize = 0.1;
-    int numTrain = (1 - testSize) * numSamples;
+    int numSamples = 40000;
+    double testSize = 0.3;
+    double trainSize = 0.2;
+    int numTrain = trainSize * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 2;
+    int numFeatures = NUM_PIXELS;
 
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
     double lamba = 0.01; //1e-2 
-    double iters = 1000;
+    // double iters = 1000; 
+    double iters = 100;
     
     cout << "defined params" << endl;
 
@@ -537,13 +474,11 @@ int main() {
     cout << "finished allocation" << endl;
     cout << "numTrain = " << numTrain << " | numTest = " << numTest << endl;
 
-    // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    string dataFileStr = "blob_data.csv";
+        // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
+    string dataFileStr = "idc_dataset40k_shuffled.csv";
 
-    if (dataFileStr == "blob_data.csv") {
-        parseBlobData(dataFileStr, Xtrain, ytrain, numTrain, Xtest, ytest);
-    } else if (dataFileStr == "titanic.csv") {
-        // parseTitanicData(dataFileStr, Xtrain, ytrain, Xtest, ytest);
+    if (dataFileStr == "idc_dataset40k_shuffled.csv") {
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
     } else {
         cout << "File " << dataFileStr << " not supported" << endl;
     }

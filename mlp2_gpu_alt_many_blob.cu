@@ -15,6 +15,11 @@
 #include <sstream>
 
 #define SEED 100
+#define HIDDEN_LAYER 268 //CHANGE
+#define OUTPUT_LAYER 2
+#define LR 0.0001
+
+#define NUM_PIXELS 400 // CHANGE
 
 using namespace std;
 
@@ -30,6 +35,8 @@ cudaError_t checkCuda(cudaError_t result)
   return result;
 }
 
+
+
 // number of threads = hiddenLayer
 // each thread computes 1 element for outputL1[]
 // x = (1 x inputLayer), weightHidden = (inputLayer x hiddenLayer)
@@ -37,87 +44,102 @@ cudaError_t checkCuda(cudaError_t result)
 // outputL1[id] = dot product x and weightHidden[:][id] (: from 0 to inputLayer)
 // outputL1[id] = sigmoid(outputL1[id] + biasHidden[id])
 //   sigmoid = 1.0 / (1.0 + exp(-1.0 * val))
-__global__ void kernelOutputL1(double* x, double* weightHidden, double* biasHidden, double* outputL1, int inputLayer, int hiddenLayer) {
-    int id = threadIdx.x;
-    double val = 0;
-    for (int i = 0; i < inputLayer; i++) {
-        val += x[i] * weightHidden[(i * hiddenLayer) + id];
-    }
-    val += biasHidden[id];
-    outputL1[id] = 1.0 / (1.0 + exp(-1.0 * val));
-    // __syncthreads();
-}
 
-// number of threads = outputLayer
-// each thread computes 1 element of outputL2[]
-// outputL1 = (1 x hiddenLayer), weightOutput = (hiddenlayer x outputLayer)
-// outputL2 = 1 x outputLayer
-// outputL2[id] = dot product outputL1 and weightOutput[:][id] (: j from 0 to hiddenLayer)
-// outputL2[id] = sigmoid (outputL2[id] + biasOutput[id])
-//   sigmoid = 1.0 / (1.0 + exp(-1.0 * val))
-__global__ void kernelOutputL2(double* outputL1, double* weightOutput, double* biasOutput, int hiddenLayer, int outputLayer, int yVal, int* output) {
-    int id = threadIdx.x;
-    double val = 0;
-    for (int i = 0; i < hiddenLayer; i++) {
-        val += outputL1[i] * weightOutput[(i * outputLayer) + id];
-    }
-    val += biasOutput[id];
-    outputL1[id] = 1.0 / (1.0 + exp(-1.0 * val));
+//hiddenLayer > outputLayer, so hiddenLayer number of threads
+__global__ void kernel(int maxEpochs, int numSamples, int inputLayer, int hiddenLayer, int outputLayer, double* xtrain, double* weightHidden, 
+                        double* biasHidden, double* weightOutput, double* biasOutput, int* y) {
+    int id = threadIdx.x;       
+    __shared__ double outputL1[HIDDEN_LAYER];
+    __shared__ double deltaOutput[OUTPUT_LAYER];
+    double outputL2Id;
+    double outputVal;
+    double* x;
 
-    if (id == yVal) {
-        output[id] = 1;
-    } else {
-        output[id] = 0;
-    }
-    // printf("id = %d, output[%d] = %d\n", id, id, output[id]);
-    // __syncthreads();
-}
+    double lr = LR;
 
-// number of threads = outputLayer
-// each thread computes deltaOutput[id], weightOutput[i][id], biasOutput[id]
-__global__ void kernelUpdateWeightOutput(int* output, double* outputL1, double* outputL2, double* weightOutput, double* biasOutput, double* deltaOutput, double lr, int hiddenLayer, int outputLayer) {
-    int id = threadIdx.x;
-    double outputL2Val = outputL2[id];
-    double deltaVal = (1.0 * output[id]) - outputL2Val;
-    deltaVal = (-1.0 * deltaVal) - (outputL2Val * (1.0 - outputL2Val));
+    // if (id == 0) {
+    //     printf("id = %d, maxEpochs = %d, numSamples = %d, inputLayer = %d, hiddenLayer = %d, outputLayer = %d, lr = %f\n", 
+    //             id, maxEpochs, numSamples, inputLayer, hiddenLayer, outputLayer, lr);
+    // }
+    
+    for (int epoch = 0; epoch < maxEpochs; epoch++) {
+        // if ((id == 0) && (epoch % 100 == 0)) {
+        //     printf("epoch = %d\n", epoch);
+        // }
+        for (int sample = 0; sample < numSamples; sample++) {
+            //Forward propagation
+            x = &xtrain[sample * inputLayer];
+            //kernelOutputL1 = hiddenLayers, all threads
+                                   
+            double val1 = 0;
+            for (int i = 0; i < inputLayer; i++) {
+                val1 = val1 + ((1.0 * x[i]) * weightHidden[(i * hiddenLayer) + id]);
+            }
+            val1 = val1 + biasHidden[id];
+            outputL1[id] = 1.0 / (1.0 + exp(-1.0 * val1));
+            __syncthreads();
 
-    for (int i = 0; i < hiddenLayer; i++) {
-        weightOutput[(i * outputLayer) + id] -= (lr * deltaVal * outputL1[i]);
-    }
-    // biasOutput[id] -= (lr * deltaVal * hiddenLayer);
-    biasOutput[id] -= (lr * deltaVal);
-    deltaOutput[id] = deltaVal;
-    // __syncthreads();
-}
+            // outputLayer, some threads
+            if (id < outputLayer) {
+                //kernelOutputL2
+                double val2 = 0;
+                for (int i = 0; i < hiddenLayer; i++) {
+                    val2 = val2 + (outputL1[i] * weightOutput[(i * outputLayer) + id]);
+                }
+                val2 = val2 + biasOutput[id];
+                outputL2Id = 1.0 / (1.0 + exp(-1.0 * val2));
 
-// number of threads = hiddenLayer
-// each thread computes product[id] (implicit), deltaHidden[id] (implicit), weightHidden[i][id], biasHidden[id]
-__global__ void kernelUpdateWeightHidden(double* input, double* outputL1, double* weightOutput, double* weightHidden, double* biasHidden, double* deltaOutput, double lr, int inputLayer, int hiddenLayer, int outputLayer) {
-    int id = threadIdx.x;
-    double outputL1Val = outputL1[id];
-    double deltaVal;
-    /*
-    double* product = new double[hiddenLayer * 1];
-    for (int i = 0; i < hiddenLayer; i++) {
-        product[i] = 0;
-        for (int k = 0; k < outputLayer; k++) {
-            product[i] += weightOutput[(i * outputLayer) + k] + deltaOutput[k];
+                if (id == y[sample]) {
+                    outputVal = 1;
+                    // printf("id = %d, output = 1\n", id);
+                } else {
+                    outputVal = 0;
+                    // printf("id = %d, output = 0\n", id);
+                }
+                // printf("id = %d, output[%d] = %d\n", id, id, output[id]);
+                // __syncthreads();
+
+                //kernelUpdateWeightOutput
+                double outputL2Val = outputL2Id;
+                double deltaVal = (1.0 * outputVal) - outputL2Val;
+                deltaVal = (-1.0) * deltaVal - (outputL2Val * (1.0 - outputL2Val));
+
+                for (int i = 0; i < hiddenLayer; i++) {
+                    weightOutput[(i * outputLayer) + id] = weightOutput[(i * outputLayer) + id] - (lr * deltaVal * outputL1[i]);
+                }
+                biasOutput[id] -= (lr * deltaVal * hiddenLayer);
+                // biasOutput[id] = biasOutput[id] - (lr * deltaVal);
+                deltaOutput[id] = deltaVal;
+            }
+            __syncthreads();
+            
+            //kernelUpdateWeightHidden = hiddenLayers, all threads
+            double outputL1Val = outputL1[id];
+            double deltaValHidden;
+            /*
+            double* product = new double[hiddenLayer * 1];
+            for (int i = 0; i < hiddenLayer; i++) {
+                product[i] = 0;
+                for (int k = 0; k < outputLayer; k++) {
+                    product[i] += weightOutput[(i * outputLayer) + k] + deltaOutput[k];
+                }
+            }
+            */
+            double productVal = 0;
+            for (int k = 0; k < outputLayer; k++) {
+                productVal = productVal + (weightOutput[(id * outputLayer) + k] + deltaOutput[k]);
+            }
+
+            deltaValHidden = productVal * (outputL1Val * (1.0 - outputL1Val));
+
+            for (int i = 0; i < inputLayer; i++) {
+                weightHidden[(i * hiddenLayer) + id] = weightHidden[(i * hiddenLayer) + id] - (lr * deltaValHidden * x[i]);
+            }
+            biasHidden[id] -= (lr * deltaValHidden * inputLayer);
+            // biasHidden[id] = biasHidden[id] - (lr * deltaValHidden);
+            __syncthreads();
         }
     }
-    */
-    double productVal = 0;
-    for (int k = 0; k < outputLayer; k++) {
-        productVal += weightOutput[(id * outputLayer) + k] + deltaOutput[k];
-    }
-
-    deltaVal = productVal * (outputL1Val * (1.0 - outputL1Val));
-
-    for (int i = 0; i < inputLayer; i++) {
-        weightHidden[(i * hiddenLayer) + id] -= (lr * deltaVal * input[i]);
-    }
-    // biasHidden[id] -= (lr * deltaVal * inputLayer);
-    biasHidden[id] -= (lr * deltaVal);
-    // __syncthreads();
 }
 
 class MLP {
@@ -189,18 +211,18 @@ class MLP {
                 }
 
                 //print weightHidden
-                for (int i = 0; i < inputLayer; i++) {
-                    for (int j = 0; j < hiddenLayer; j++) {
-                        cout << weightHidden[(i * hiddenLayer) + j] << endl;
-                    }
-                }
+                // for (int i = 0; i < inputLayer; i++) {
+                //     for (int j = 0; j < hiddenLayer; j++) {
+                //         cout << weightHidden[(i * hiddenLayer) + j] << endl;
+                //     }
+                // }
 
-                // init weightOutput
-                for (int i = 0; i < hiddenLayer; i++) {
-                    for (int j = 0; j < outputLayer; j++) {
-                        cout << weightOutput[(i * outputLayer) + j] << endl;
-                    }
-                }
+                // // init weightOutput
+                // for (int i = 0; i < hiddenLayer; i++) {
+                //     for (int j = 0; j < outputLayer; j++) {
+                //         cout << weightOutput[(i * outputLayer) + j] << endl;
+                //     }
+                // }
             }
 
         ~MLP() {
@@ -281,56 +303,39 @@ class MLP {
             // double* outputL1 = new double[hiddenLayer];
             // double* outputL2 = new double[outputLayer];
 
-            int* gpuOutput;
-            double* gpuOutputL1;
-            double* gpuOutputL2;
-            double* gpuXtrain;
+            double* gpuX;
             double* gpuWeightHidden;
-            double* gpuWeightOutput;
             double* gpuBiasHidden;
+            double* gpuWeightOutput;
             double* gpuBiasOutput;
-            double* gpuDeltaOutput;
+            int* gpuY;
 
-            cudaMalloc((void**)&gpuOutput, sizeof(int)*numClasses);
-            cudaMalloc((void**)&gpuOutputL1, sizeof(double)*hiddenLayer);
-            cudaMalloc((void**)&gpuOutputL2, sizeof(double)*outputLayer);
-            cudaMalloc((void**)&gpuXtrain, sizeof(double)*numSamples*inputLayer);
+
+            cudaMalloc((void**)&gpuX, sizeof(double)*numSamples*inputLayer);
             cudaMalloc((void**)&gpuWeightHidden, sizeof(double)*inputLayer*hiddenLayer); 
             cudaMalloc((void**)&gpuWeightOutput, sizeof(double)*hiddenLayer*outputLayer); 
             cudaMalloc((void**)&gpuBiasHidden, sizeof(double)*hiddenLayer); 
             cudaMalloc((void**)&gpuBiasOutput, sizeof(double)*outputLayer); 
-            cudaMalloc((void**)&gpuDeltaOutput, sizeof(double)*outputLayer); 
+            cudaMalloc((void**)&gpuY, sizeof(int)*numSamples); 
 
             struct timespec start, stop; 
             double time;
             if( clock_gettime( CLOCK_REALTIME, &start) == -1 ) { perror( "clock gettime" );}
-            
 
-            cudaMemcpy(gpuXtrain, xtrain, sizeof(double)*numSamples*inputLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuX, xtrain, sizeof(double)*numSamples*inputLayer, cudaMemcpyHostToDevice);
             cudaMemcpy(gpuWeightHidden, weightHidden, sizeof(double)*inputLayer*hiddenLayer, cudaMemcpyHostToDevice);
             cudaMemcpy(gpuWeightOutput, weightOutput, sizeof(double)*hiddenLayer*outputLayer, cudaMemcpyHostToDevice);
             cudaMemcpy(gpuBiasHidden, biasHidden, sizeof(double)*hiddenLayer, cudaMemcpyHostToDevice);
             cudaMemcpy(gpuBiasOutput, biasOutput, sizeof(double)*outputLayer, cudaMemcpyHostToDevice);
+            cudaMemcpy(gpuY, ytrain, sizeof(int)*numSamples, cudaMemcpyHostToDevice);
 
             dim3 dimGrid(1);
-            dim3 dimBlockHidden(hiddenLayer);
-            dim3 dimBlockOutput(outputLayer);
+            dim3 dimBlock(hiddenLayer);
 
-            for (int epoch = 0; epoch < maxEpochs; epoch++) {
-                if (epoch % 50 == 0) {
-                    cout << "epoch = " << epoch << endl;
-                }
-                for (int sample = 0; sample < numSamples; sample++) {
-                    //Forward propagation
-                    // x = &xtrain[sample * inputLayer];
-                    kernelOutputL1<<<dimGrid, dimBlockHidden>>>(&gpuXtrain[sample * inputLayer], gpuWeightHidden, gpuBiasHidden, gpuOutputL1, inputLayer, hiddenLayer);
-                    kernelOutputL2<<<dimGrid, dimBlockOutput>>>(gpuOutputL1, gpuWeightOutput, gpuBiasOutput, hiddenLayer, outputLayer, ytrain[sample], gpuOutput);
-
-                    //backprop
-                    kernelUpdateWeightOutput<<<dimGrid, dimBlockOutput>>>(gpuOutput, gpuOutputL1, gpuOutputL2, gpuWeightOutput, gpuBiasOutput, gpuDeltaOutput, lr, hiddenLayer, outputLayer);
-                    kernelUpdateWeightHidden<<<dimGrid, dimBlockHidden>>>(&gpuXtrain[sample * inputLayer], gpuOutputL1, gpuWeightOutput, gpuWeightHidden, gpuBiasHidden, gpuDeltaOutput, lr, inputLayer, hiddenLayer, outputLayer);
-                }
-            }
+            // __global__ void kernel(int maxEpochs, int numSamples, int inputLayer, int hiddenLayer, int outputLayer, int lr, double* xtrain, double* weightHidden, 
+            //             double* biasHidden, double* weightOutput, double* biasOutput, int* y) {
+            kernel<<<dimGrid, dimBlock>>>(maxEpochs, numSamples, inputLayer, hiddenLayer, outputLayer, gpuX, 
+                                            gpuWeightHidden, gpuBiasHidden, gpuWeightOutput, gpuBiasOutput, gpuY);
 
             cudaMemcpy(weightHidden, gpuWeightHidden, sizeof(double)*inputLayer*hiddenLayer, cudaMemcpyDeviceToHost);
             cudaMemcpy(weightOutput, gpuWeightOutput, sizeof(double)*hiddenLayer*outputLayer, cudaMemcpyDeviceToHost);
@@ -341,15 +346,12 @@ class MLP {
             time = (stop.tv_sec - start.tv_sec)+ (double)(stop.tv_nsec - start.tv_nsec)/1e9;
             printf("time is %f sec\n", time);	
 
-            cudaFree(gpuOutput);
-            cudaFree(gpuOutputL1);
-            cudaFree(gpuOutputL2);
-            cudaFree(gpuXtrain);
-            cudaFree(gpuWeightHidden); 
-            cudaFree(gpuWeightOutput); 
-            cudaFree(gpuBiasHidden); 
-            cudaFree(gpuBiasOutput); 
-            cudaFree(gpuDeltaOutput); 
+            cudaFree(gpuX);
+            cudaFree(gpuWeightHidden);
+            cudaFree(gpuBiasHidden);
+            cudaFree(gpuWeightOutput);
+            cudaFree(gpuBiasOutput);
+            cudaFree(gpuY); 
         }
 
         //prediction = empty array allocated for size = num * numClasses
@@ -506,14 +508,14 @@ class MLP {
                     }
                     cout << endl;
                     cout << "weightHidden: " ;
-                    // for (int i = 0; i < outputLayer; i++) {
-                        cout << weightHidden[0] << " " << weightHidden[3]<< " " << weightHidden[4]<< " " << weightHidden[5]<< " " << weightHidden[6] << endl;
-                    // }
+                    for (int i = 0; i < (inputLayer * hiddenLayer); i++) {
+                        cout << weightHidden[i] << " ";
+                    }
                     cout << endl;  
                     cout << "weightOutput: " ;
-                    // for (int i = 0; i < outputLayer; i++) {
-                        cout << weightOutput[0] << " " << weightOutput[3]<< " " << weightOutput[4]<< " " << weightOutput[5]<< " " << weightOutput[6] << endl;
-                    // }
+                    for (int i = 0; i < (hiddenLayer * outputLayer); i++) {
+                        cout << weightOutput[i] << " ";
+                    }
                     cout << endl;  
                 }
                 
@@ -530,7 +532,9 @@ class MLP {
 double accuracy(int* yTrue, int* yPred, int size) {
     double sum = 0;
     for (int i = 0; i < size; i++) {
-        cout << "yTrue " << yTrue[i] << " | " << "yPred " << yPred[i] << endl;
+        if (i % 100 == 0) {
+            cout << "yTrue " << yTrue[i] << " | " << "yPred " << yPred[i] << endl;
+        }
         if (yTrue[i] == yPred[i]) {
             sum++;
         }
@@ -538,15 +542,77 @@ double accuracy(int* yTrue, int* yPred, int size) {
     return (sum / (1.0 * size));
 }
 
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
+    ifstream inputFile;
+    inputFile.open(dataFileStr);
+    // // cout << "open file" << endl;
+    
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        // if (flag) {
+        //     flag = false;
+        //     continue;
+        // }
+        int label;
+        double pixels[NUM_PIXELS];
+        string temp = "";
+
+        stringstream inputString(line);
+        // ss >> xData1 >> xData2 >> cls;
+        getline(inputString, temp, ',');
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        // // // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // // // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+            }
+            ytrain[idx] = label;
+        } else {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+            }
+            ytest[idx] = label;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
+
+    }
+        
+    // // cout << "file read" << endl;
+    inputFile.close();
+    // // cout << "file closed" << endl;
+
+}
+
+
 int main() {
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 250;
+    int numSamples = 20000; // CHANGE!
     double testSize = 0.1;
     int numTrain = (1 - testSize) * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 2;
-    int numHidden = 3;
+    int numFeatures = 400; // CHANGE!
+    // int numHidden = 3;
+    int numHidden = 268;
     int numClasses = 2;
     int biasHiddenValue = -1;
     int biasOutputValue = -1;
@@ -554,7 +620,7 @@ int main() {
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
     // double iters = 1000;
-    double iters = 10;
+    double iters = 1000;
     
     cout << "defined params" << endl;
 
@@ -577,56 +643,12 @@ int main() {
     cout << "finished allocation" << endl;
 
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    ifstream inputFile;
-    inputFile.open("blob_data.csv");
+    string dataFileStr = "blob_400d.csv"; // CHANGE!
 
-
-    cout << "open file" << endl;
-
-    string line = "";
-    int total = 0;
-    bool flag = true;
-    int idx = 0;
-    while (getline(inputFile, line)) {
-        if (flag) {
-            flag = false;
-            continue;
-        }
-        double xData1;
-        double xData2;
-        int cls;
-        string temp = "";
-
-        stringstream inputString(line);
-        // ss >> xData1 >> xData2 >> cls;
-        getline(inputString, temp, ',');
-        xData1 = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        xData2 = atof(temp.c_str());
-        getline(inputString, temp, ',');
-        cls = atoi(temp.c_str());
-
-        
-
-        if (total == numTrain) {
-            idx = 0;
-        }
-        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
-        if (total < numTrain) {
-            Xtrain[idx][0] = xData1;
-            Xtrain[idx][1] = xData2;
-            ytrain[idx] = cls;
-        } else {
-            Xtest[idx][0] = xData1;
-            Xtest[idx][1] = xData2;
-            ytest[idx] = cls;
-        }
-
-        line = "";
-        total++;
-        idx++;
-
+    if (dataFileStr == "blob_400d.csv") { // CHANGE!
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
+    } else {
+        // cout << "File " << dataFileStr << " not supported" << endl;
     }
 
     for (int i = 0; i < numTrain; i++) {
@@ -641,10 +663,6 @@ int main() {
         }
     }
     
-    cout << "file read" << endl;
-    inputFile.close();
-    cout << "file closed" << endl;
-
     MLP classifier = MLP(numFeatures, numHidden, numClasses, learningRate, iters, 
                             biasHiddenValue, biasOutputValue, numClasses);
     

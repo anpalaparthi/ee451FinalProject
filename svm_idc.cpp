@@ -19,6 +19,8 @@
 
 using namespace std;
 
+const int NUM_PIXELS = 7500;
+
 class SVM {
 
     private:
@@ -156,6 +158,8 @@ class SVM {
                     estimate[i] = 1;
                 }
             }
+            cout << "weight: " << w[0] << ", " << w[34] << ", " << w[1450] << ", " << w[2354] << ", " << w[6458] << endl; 
+
             return estimate;
         }
 
@@ -173,21 +177,82 @@ double accuracy(int* yTrue, int* yPred, int size) {
     return (sum / (1.0 * size));
 }
 
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
+    ifstream inputFile;
+    inputFile.open(dataFileStr);
+    cout << "open file" << endl;
+    
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        // if (flag) {
+        //     flag = false;
+        //     continue;
+        // }
+        int label;
+        double pixels[NUM_PIXELS];
+        string temp = "";
+
+        stringstream inputString(line);
+        // ss >> xData1 >> xData2 >> cls;
+        getline(inputString, temp, ',');
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+            }
+            ytrain[idx] = label;
+        } else {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+            }
+            ytest[idx] = label;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
+
+    }
+        
+    cout << "file read" << endl;
+    inputFile.close();
+    cout << "file closed" << endl;
+
+}
+
 int main() {
 
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 891;
-    double testSize = 0.25;
-    double trainSize = 0.75;
-    int numTrain = ((trainSize) * numSamples) + 1;
+    int numSamples = 40000;
+    double testSize = 0.3;
+    double trainSize = 0.2;
+    int numTrain = trainSize * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 8;
+    int numFeatures = NUM_PIXELS;
 
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
     double lamba = 0.01; //1e-2 
-    double iters = 1000;
+    // double iters = 1000; 
+    double iters = 100;
     
     cout << "defined params" << endl;
 
@@ -208,110 +273,13 @@ int main() {
     cout << "finished allocation" << endl;
 
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    ifstream inputFile;
-    inputFile.open("titanic_prep.csv");
+    string dataFileStr = "idc_dataset40k_shuffled.csv";
 
-
-    cout << "open file" << endl;
-
-    string line = "";
-    int total = 0;
-    bool flag = true;
-    int idx = 0;
-    while (getline(inputFile, line)) {
-        if (flag) {
-            flag = false;
-            continue;
-        }
-        double xData1;
-        double xData2;
-        double xData3;
-        double xData4;
-        double xData5;
-        double xData6;
-        double xData7;
-        double xData8;
-        double xData9;
-        int cls;
-        int rowNum;
-        string temp = "";
-
-        stringstream inputString(line);
-        getline(inputString, temp, ',');
-        rowNum = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData1 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        cls = atoi(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData2 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData3 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData4 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData5 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData6 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData7 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData8 = atof(temp.c_str());
-
-        getline(inputString, temp, ',');
-        xData9 = atof(temp.c_str());
-
-        if (total == numTrain) {
-            idx = 0;
-        }
-        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
-        cout << xData1 << ", " << xData2 << ", " << xData3 << ", " << xData4 << ", " << xData5 << ", " << xData6 << ", " << xData7 << ", " << xData8 << ", " << xData9 << " | cls = " << cls << endl;
-        if (total < numTrain) {
-            Xtrain[idx][0] = xData2;
-            Xtrain[idx][1] = xData3;
-            Xtrain[idx][2] = xData4;
-            Xtrain[idx][3] = xData5;
-            Xtrain[idx][4] = xData6;
-            Xtrain[idx][5] = xData7;
-            Xtrain[idx][6] = xData8;
-            Xtrain[idx][7] = xData9;
-            ytrain[idx] = cls;
-        } else {
-            // Xtest[idx][0] = xData1;
-            cout << "iteration finished" << endl;
-            Xtest[idx][0] = xData2;
-            Xtest[idx][1] = xData3;
-            Xtest[idx][2] = xData4;
-            Xtest[idx][3] = xData5;
-            Xtest[idx][4] = xData6;
-            Xtest[idx][5] = xData7;
-            Xtest[idx][6] = xData8;
-            Xtest[idx][7] = xData9;
-            ytest[idx] = cls;
-        }
-
-        line = "";
-        total++;
-        idx++;
-
-        if (total == (numTrain + numTest)) {
-            break;
-        }
+    if (dataFileStr == "idc_dataset40k_shuffled.csv") {
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
+    } else {
+        cout << "File " << dataFileStr << " not supported" << endl;
     }
-
-    
-    cout << "file read" << endl;
-    inputFile.close();
-    cout << "file closed" << endl;
 
     SVM classifier = SVM(learningRate, lamba, iters);
     struct timespec start, stop; 
@@ -325,7 +293,7 @@ int main() {
     int* predictions = classifier.predict(Xtest, numTest);
     
     
-    cout << "cassifier trained " << endl;
+    cout << "classifier trained " << endl;
     double acc = accuracy(ytest, predictions, numTest);
     printf("SVM Accuracy: %f\n", acc);
     printf("Training Execution Time: %f sec\n", time);

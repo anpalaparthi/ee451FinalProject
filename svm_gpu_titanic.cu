@@ -20,83 +20,10 @@
 using namespace std;
 
 #define NUM_FEATURES 2
-#define NUM_PIXELS 2
+#define NUM_PIXELS 8
 
 //NUM_FEATURES = lenW = 2
 // kernel<<<dimGrid, (numIters, size, lenW, gpuW, b, gpuCLS, gpuX, lr, lambdaParam);				
-/*
-__global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam) {
-
-    int id = threadIdx.x;
-    printf("id = %d\n", id);
-    __shared__ double myW[NUM_FEATURES];
-    __shared__ bool constraint;
-    __shared__ double myB;
-    __shared__ double x[NUM_FEATURES];
-    myW[id] = w[id];
-    myB = b[0];
-    // if (id == 0) {
-    //     printf("id = 0, myB = %f\n",myB);
-    // }
-    double result = 0;
-    double xVal = 0;
-    for (int i = 0; i < numIters; i++) {
-        for (int j = 0; j < size; j++) {
-            //check constraint: dotProduct with recursive doubling
-            xVal = X[(j * NUM_FEATURES) + id];
-            x[id] = xVal * myW[id];
-            // if ((id == 0) && (i % 100 == 0) && (j == 0)) {
-            //     printf("id = 0, i = %d, myW[id] = %f, xVal = %f, cls[j] = %f\n", i, myW[id], xVal, cls[j]);
-            // }
-            for (int k = 2; k <= lenW; k *= 2) {
-                __syncthreads();
-                if ((id % k) == 0) {
-                    x[id] += x[id + (k/2)];
-                }
-            }
-
-            if (id == 0) {
-                result = x[id] + myB;
-                // if ((i % 100 == 0) && (j == 0)) {
-                //     printf("id = 0, i = %d, result = %f\n", i, result);
-                // }
-                if ((cls[j] * result) >= 1) {
-                    constraint = true;
-                    // myB = 0;
-                } else {
-                    constraint = false;
-                    myB -= lr * (-cls[j]);
-                }
-                // if ((i % 100 == 0) && (j == 0)) {
-                //     printf("id = 0, i = %d, constraint = %d\n", i, constraint);
-                // }
-                
-            }
-
-            //get and update gradients
-            if (constraint) {
-                myW[id] = myW[id] - (lr * myW[id] * lambdaParam);
-                // if ((id == 0) && (i % 100 == 0) && (j == 0)) {
-                //     printf("constrain: myW[id] = %f\n", myW[id]);
-                // }
-            } else {
-                myW[id] = myW[id] - (lr * ((lambdaParam * myW[id]) - (cls[j] * xVal)));
-                // if ((id == 0) && (i % 100 == 0) && (j == 0)) {
-                //     printf("else constrain: myW[id] = %f\n", myW[id]);
-                // }
-            }
-            
-        }
-        __syncthreads();
-    }
-    
-    w[id] = myW[id];
-    if (id == 0) {
-        b[0] = myB;
-        // printf("end w[id] = %f, b = %f\n", w[id], b[0]);
-    }
-}
-*/
 
 __global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam) {
 
@@ -183,7 +110,6 @@ __global__ void kernel(int numIters, int size, int lenW, double* w, double* b, d
     // printf("digit = %d, id = %d, end w[id] = %f, b = %f\n", digit, id, w[id], b[0]);
     
 }
-
 
 class SVM {
 
@@ -319,7 +245,8 @@ class SVM {
             // cout << "lenW = " << lenW << endl;
             dim3 dimGrid(1);
             dim3 dimBlock(lenW);
-            	
+            //__global__ void kernel(int numIters, int size, int lenW, double* w, double* b, double* cls, double* X, double lr, double lambdaParam, int digit) {
+
             kernel<<<dimGrid, dimBlock>>>(numIters, size, lenW, gpuW, gpuB, gpuCLS, gpuX, lr, lambdaParam);				
  
             
@@ -507,11 +434,13 @@ int main() {
 
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 250;
-    double testSize = 0.1;
-    int numTrain = (1 - testSize) * numSamples;
+    int numSamples = 891;
+    double testSize = 0.25;
+    double trainSize = 0.75;
+    int numTrain = ((trainSize) * numSamples) + 1;
     int numTest = testSize * numSamples;
-    int numFeatures = 2;
+    int numFeatures = 8;
+
 
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
@@ -538,15 +467,110 @@ int main() {
     cout << "numTrain = " << numTrain << " | numTest = " << numTest << endl;
 
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    string dataFileStr = "blob_data.csv";
+    ifstream inputFile;
+    inputFile.open("titanic_prep.csv");
 
-    if (dataFileStr == "blob_data.csv") {
-        parseBlobData(dataFileStr, Xtrain, ytrain, numTrain, Xtest, ytest);
-    } else if (dataFileStr == "titanic.csv") {
-        // parseTitanicData(dataFileStr, Xtrain, ytrain, Xtest, ytest);
-    } else {
-        cout << "File " << dataFileStr << " not supported" << endl;
+
+    cout << "open file" << endl;
+
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        if (flag) {
+            flag = false;
+            continue;
+        }
+        double xData1;
+        double xData2;
+        double xData3;
+        double xData4;
+        double xData5;
+        double xData6;
+        double xData7;
+        double xData8;
+        double xData9;
+        int cls;
+        int rowNum;
+        string temp = "";
+
+        stringstream inputString(line);
+        getline(inputString, temp, ',');
+        rowNum = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData1 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        cls = atoi(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData2 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData3 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData4 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData5 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData6 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData7 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData8 = atof(temp.c_str());
+
+        getline(inputString, temp, ',');
+        xData9 = atof(temp.c_str());
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        cout << xData1 << ", " << xData2 << ", " << xData3 << ", " << xData4 << ", " << xData5 << ", " << xData6 << ", " << xData7 << ", " << xData8 << ", " << xData9 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            Xtrain[idx][0] = xData2;
+            Xtrain[idx][1] = xData3;
+            Xtrain[idx][2] = xData4;
+            Xtrain[idx][3] = xData5;
+            Xtrain[idx][4] = xData6;
+            Xtrain[idx][5] = xData7;
+            Xtrain[idx][6] = xData8;
+            Xtrain[idx][7] = xData9;
+            ytrain[idx] = cls;
+        } else {
+            // Xtest[idx][0] = xData1;
+            cout << "iteration finished" << endl;
+            Xtest[idx][0] = xData2;
+            Xtest[idx][1] = xData3;
+            Xtest[idx][2] = xData4;
+            Xtest[idx][3] = xData5;
+            Xtest[idx][4] = xData6;
+            Xtest[idx][5] = xData7;
+            Xtest[idx][6] = xData8;
+            Xtest[idx][7] = xData9;
+            ytest[idx] = cls;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
     }
+    
+    cout << "file read" << endl;
+    inputFile.close();
+    cout << "file closed" << endl;
+
 
     double* Xtrain1D = new double[numTrain * numFeatures];
     for (int i = 0; i < numTrain; i++) {

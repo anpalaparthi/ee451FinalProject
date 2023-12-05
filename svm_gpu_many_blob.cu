@@ -19,8 +19,8 @@
 
 using namespace std;
 
-#define NUM_FEATURES 2
-#define NUM_PIXELS 2
+#define NUM_CLASSES 2
+#define NUM_PIXELS 400 // CHANGE!
 
 //NUM_FEATURES = lenW = 2
 // kernel<<<dimGrid, (numIters, size, lenW, gpuW, b, gpuCLS, gpuX, lr, lambdaParam);				
@@ -503,20 +503,85 @@ void parseTitanicData(string dataFileStr, double** Xtrain, double* ytrain, , dou
 }
 */
 
+void parseMNISTData(string dataFileStr, int numTrain, int numTest, double** Xtrain, int* ytrain, double** Xtest, int* ytest) {
+    ifstream inputFile;
+    inputFile.open(dataFileStr);
+    // cout << "open file" << endl;
+    
+    string line = "";
+    int total = 0;
+    bool flag = true;
+    int idx = 0;
+    while (getline(inputFile, line)) {
+        // if (flag) {
+        //     flag = false;
+        //     continue;
+        // }
+        int label;
+        double pixels[NUM_PIXELS];
+        string temp = "";
+
+        stringstream inputString(line);
+        // ss >> xData1 >> xData2 >> cls;
+        getline(inputString, temp, ',');
+        label = atoi(temp.c_str());
+        for (int i = 0; i < NUM_PIXELS; i++) {
+            getline(inputString, temp, ',');
+            pixels[i] = atof(temp.c_str());
+        }        
+
+        if (total == numTrain) {
+            idx = 0;
+        }
+        // // cout << "total = " << total << " | numTrain = " << numTrain << " | numTest = " << numTest << " | idx = " << idx << endl;
+        // // cout << "xData1 = " << xData1 << " | xData2 = " << xData2 << " | cls = " << cls << endl;
+        if (total < numTrain) {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtrain[idx][i] = pixels[i];
+            }
+            ytrain[idx] = label;
+        } else {
+            for (int i = 0; i < NUM_PIXELS; i++) {
+                Xtest[idx][i] = pixels[i];
+            }
+            ytest[idx] = label;
+        }
+
+        line = "";
+        total++;
+        idx++;
+
+        if (total == (numTrain + numTest)) {
+            break;
+        }
+
+    }
+        
+    // cout << "file read" << endl;
+    inputFile.close();
+    // cout << "file closed" << endl;
+
+}
+
+
 int main() {
 
     cout << "start" << endl;
     // training/test data parameters
-    int numSamples = 250;
+    int numSamples = 20000;
     double testSize = 0.1;
-    int numTrain = (1 - testSize) * numSamples;
+    double trainSize = 0.9;
+    int numTrain = trainSize * numSamples;
     int numTest = testSize * numSamples;
-    int numFeatures = 2;
+    int numFeatures = NUM_PIXELS;
+
 
     // SVM hyperparameters
     double learningRate = 0.001; //1e-3
-    double lamba = 0.01; //1e-2 
+    // double iters = 1000;
     double iters = 1000;
+    // double lamba = 1.0 / iters; //1e-2 
+    double lamba = 0.001;
     
     cout << "defined params" << endl;
 
@@ -535,17 +600,13 @@ int main() {
 
     
     cout << "finished allocation" << endl;
-    cout << "numTrain = " << numTrain << " | numTest = " << numTest << endl;
-
     // read from csv: https://www.youtube.com/watch?v=NFvxA-57LLA
-    string dataFileStr = "blob_data.csv";
+    string dataFileStr = "blob_400d.csv"; // CHANGE!
 
-    if (dataFileStr == "blob_data.csv") {
-        parseBlobData(dataFileStr, Xtrain, ytrain, numTrain, Xtest, ytest);
-    } else if (dataFileStr == "titanic.csv") {
-        // parseTitanicData(dataFileStr, Xtrain, ytrain, Xtest, ytest);
+    if (dataFileStr == "blob_400d.csv") { // CHANGE!
+        parseMNISTData(dataFileStr, numTrain, numTest, Xtrain, ytrain, Xtest, ytest);
     } else {
-        cout << "File " << dataFileStr << " not supported" << endl;
+        // cout << "File " << dataFileStr << " not supported" << endl;
     }
 
     double* Xtrain1D = new double[numTrain * numFeatures];
@@ -554,6 +615,8 @@ int main() {
             Xtrain1D[(i * numFeatures) + j] = Xtrain[i][j];
         }
     }
+
+    cout << "done loadin data" << endl;
 
     SVM classifier = SVM(learningRate, lamba, iters);
     classifier.fit(Xtrain1D, numFeatures, ytrain, numTrain);
